@@ -81,7 +81,7 @@ A comprehensive personal health tracking application with AI-powered insights, b
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
-   cd healthup_temp
+   cd healthup
    ```
 
 2. **Set up environment variables**
@@ -102,18 +102,41 @@ A comprehensive personal health tracking application with AI-powered insights, b
 
 3. **Start the application**
    ```bash
-   docker-compose up -d
+   ./start.sh
    ```
 
-4. **Initialize the database**
-   ```bash
-   docker-compose exec backend alembic upgrade head
-   ```
-
-5. **Access the application**
+4. **Access the application**
    - Frontend: http://localhost:3000
    - Backend API: http://localhost:8000
    - API Docs: http://localhost:8000/docs
+
+### 🚀 EC2 Production Deployment
+
+For production deployment on AWS EC2:
+
+1. **Launch EC2 Instance**
+   - Ubuntu Server 22.04 LTS
+   - t3.medium or larger
+   - Security Group: Allow ports 22, 80, 443, 3000, 8000
+
+2. **Deploy Application**
+   ```bash
+   # Connect to EC2 instance
+   ssh -i your-key.pem ubuntu@your-ec2-ip
+   
+   # Clone and deploy
+   git clone https://github.com/your-username/healthup.git
+   cd healthup
+   chmod +x deploy-ec2.sh
+   ./deploy-ec2.sh
+   ```
+
+3. **Access Production App**
+   - Frontend: `http://your-ec2-public-ip:3000`
+   - Backend: `http://your-ec2-public-ip:8000`
+   - Mobile: Open the frontend URL on your phone
+
+📖 **Full EC2 Deployment Guide**: See [EC2_DEPLOYMENT_GUIDE.md](EC2_DEPLOYMENT_GUIDE.md)
 
 ### Development Setup
 

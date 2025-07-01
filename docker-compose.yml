@@ -7,22 +7,23 @@ services:
     environment:
       POSTGRES_DB: healthup
       POSTGRES_USER: healthup
-      POSTGRES_PASSWORD: healthup
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-healthup123}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U healthup"]
       interval: 30s
       timeout: 10s
       retries: 3
+    restart: unless-stopped
 
   # Redis for Celery
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "6380:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -30,6 +31,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    restart: unless-stopped
 
   # Backend API
   backend:
@@ -37,10 +39,11 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     environment:
-      - DATABASE_URL=postgresql://healthup:healthup@postgres:5432/healthup
+      - DATABASE_URL=postgresql://healthup:${POSTGRES_PASSWORD:-healthup123}@postgres:5432/healthup
       - REDIS_URL=redis://redis:6379
-      - SECRET_KEY=${SECRET_KEY:-your-secret-key-here}
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-this-in-production}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - CORS_ORIGINS=${CORS_ORIGINS:-*}
     ports:
       - "8000:8000"
     depends_on:
@@ -51,6 +54,7 @@ services:
     volumes:
       - ./backend:/app
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
 
   # Celery Worker
   worker:
@@ -58,9 +62,9 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     environment:
-      - DATABASE_URL=postgresql://healthup:healthup@postgres:5432/healthup
+      - DATABASE_URL=postgresql://healthup:${POSTGRES_PASSWORD:-healthup123}@postgres:5432/healthup
       - REDIS_URL=redis://redis:6379
-      - SECRET_KEY=${SECRET_KEY:-your-secret-key-here}
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-this-in-production}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
     depends_on:
       postgres:
@@ -70,6 +74,7 @@ services:
     volumes:
       - ./backend:/app
     command: celery -A app.worker.celery_app worker --loglevel=info
+    restart: unless-stopped
 
   # Celery Beat (Scheduler)
   scheduler:
@@ -77,9 +82,9 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     environment:
-      - DATABASE_URL=postgresql://healthup:healthup@postgres:5432/healthup
+      - DATABASE_URL=postgresql://healthup:${POSTGRES_PASSWORD:-healthup123}@postgres:5432/healthup
       - REDIS_URL=redis://redis:6379
-      - SECRET_KEY=${SECRET_KEY:-your-secret-key-here}
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-this-in-production}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
     depends_on:
       postgres:
@@ -89,6 +94,7 @@ services:
     volumes:
       - ./backend:/app
     command: celery -A app.worker.celery_app beat --loglevel=info
+    restart: unless-stopped
 
   # Frontend PWA
   frontend:
@@ -98,10 +104,11 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - VITE_API_URL=http://localhost:8000
+      - VITE_API_URL=${API_URL:-http://localhost:8000}
       - VITE_GEMINI_API_KEY=${GEMINI_API_KEY}
     depends_on:
       - backend
+    restart: unless-stopped
 
 volumes:
   postgres_data:

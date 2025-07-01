@@ -3,18 +3,43 @@ import { useNavigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import './Dashboard.css';
 
-interface HealthData {
-  weight: number;
+interface WeightEntry {
+  id: number;
+  kg: number;
+  logged_at: string;
+}
+
+interface FoodEntry {
+  id: number;
+  name: string;
   calories: number;
   protein: number;
   fat: number;
   carbs: number;
-  heartRate: number;
+  logged_at: string;
+}
+
+interface HREntry {
+  id: number;
+  avg_bpm: number;
+  min_bpm: number;
+  max_bpm: number;
+  started_at: string;
+}
+
+interface DashboardData {
+  recent_weight: WeightEntry[];
+  recent_food: FoodEntry[];
+  recent_hr: HREntry[];
+  stats: {
+    total_weight_entries: number;
+    total_food_entries: number;
+    total_hr_sessions: number;
+  };
 }
 
 const Dashboard: React.FC = () => {
-  const [todayData, setTodayData] = useState<HealthData | null>(null);
-  const [weeklyData, setWeeklyData] = useState<any[]>([]);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -33,8 +58,7 @@ const Dashboard: React.FC = () => {
       
       if (response.ok) {
         const data = await response.json();
-        setTodayData(data.today);
-        setWeeklyData(data.weekly);
+        setDashboardData(data);
       }
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
@@ -43,9 +67,56 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const getLatestWeight = () => {
+    if (!dashboardData?.recent_weight || dashboardData.recent_weight.length === 0) {
+      return null;
+    }
+    return dashboardData.recent_weight[0]; // Most recent weight
+  };
+
+  const getTodayCalories = () => {
+    if (!dashboardData?.recent_food) return 0;
+    const today = new Date().toDateString();
+    return dashboardData.recent_food
+      .filter(food => new Date(food.logged_at).toDateString() === today)
+      .reduce((sum, food) => sum + food.calories, 0);
+  };
+
+  const getTodayProtein = () => {
+    if (!dashboardData?.recent_food) return 0;
+    const today = new Date().toDateString();
+    return dashboardData.recent_food
+      .filter(food => new Date(food.logged_at).toDateString() === today)
+      .reduce((sum, food) => sum + food.protein, 0);
+  };
+
+  const getLatestHeartRate = () => {
+    if (!dashboardData?.recent_hr || dashboardData.recent_hr.length === 0) {
+      return null;
+    }
+    return dashboardData.recent_hr[0]; // Most recent HR session
+  };
+
+  const getWeightChartData = () => {
+    if (!dashboardData?.recent_weight) return [];
+    return dashboardData.recent_weight
+      .slice(0, 7) // Last 7 entries
+      .reverse() // Show oldest to newest
+      .map(entry => ({
+        date: new Date(entry.logged_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        weight: entry.kg
+      }));
+  };
+
   if (loading) {
     return <div className="dashboard-loading">Loading your health data...</div>;
   }
+
+  const latestWeight = getLatestWeight();
+  const todayCalories = getTodayCalories();
+  const todayProtein = getTodayProtein();
+  const latestHR = getLatestHeartRate();
+  const weightChartData = getWeightChartData();
 
   return (
     <div className="dashboard">
@@ -58,19 +129,23 @@ const Dashboard: React.FC = () => {
           <div className="summary-stats">
             <div className="stat">
               <span className="stat-label">Weight</span>
-              <span className="stat-value">{todayData?.weight || '--'} kg</span>
+              <span className="stat-value">
+                {latestWeight ? `${latestWeight.kg} kg` : '--'}
+              </span>
             </div>
             <div className="stat">
               <span className="stat-label">Calories</span>
-              <span className="stat-value">{todayData?.calories || 0} kcal</span>
+              <span className="stat-value">{todayCalories} kcal</span>
             </div>
             <div className="stat">
               <span className="stat-label">Protein</span>
-              <span className="stat-value">{todayData?.protein || 0}g</span>
+              <span className="stat-value">{todayProtein}g</span>
             </div>
             <div className="stat">
               <span className="stat-label">Heart Rate</span>
-              <span className="stat-value">{todayData?.heartRate || '--'} bpm</span>
+              <span className="stat-value">
+                {latestHR ? `${latestHR.avg_bpm} bpm` : '--'}
+              </span>
             </div>
           </div>
         </div>
@@ -78,15 +153,40 @@ const Dashboard: React.FC = () => {
         {/* Weekly Weight Trend */}
         <div className="dashboard-card">
           <h2>Weekly Weight Trend</h2>
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={weeklyData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip />
-              <Line type="monotone" dataKey="weight" stroke="#8884d8" strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
+          {weightChartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={200}>
+              <LineChart data={weightChartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis 
+                  dataKey="date" 
+                  tick={{ fontSize: 12 }}
+                  interval="preserveStartEnd"
+                />
+                <YAxis 
+                  tick={{ fontSize: 12 }}
+                  domain={['dataMin - 1', 'dataMax + 1']}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#fff', 
+                    border: '1px solid #ccc',
+                    borderRadius: '8px'
+                  }}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="weight" 
+                  stroke="#8884d8" 
+                  strokeWidth={2}
+                  dot={{ fill: '#8884d8', strokeWidth: 2, r: 4 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="no-data">
+              <p>No weight data yet. Log your first weight to see your trend!</p>
+            </div>
+          )}
         </div>
 
         {/* Quick Actions */}
