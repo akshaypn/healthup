@@ -1,0 +1,154 @@
+.food-log {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.food-log h1 {
+  font-size: 32px;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 32px;
+  text-align: center;
+}
+
+.food-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 24px;
+}
+
+.food-form-card,
+.food-summary-card,
+.food-history-card {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  border: 1px solid #e9ecef;
+}
+
+.food-form-card h2,
+.food-summary-card h2,
+.food-history-card h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 20px;
+}
+
+.food-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.macros-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.nutrition-summary {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.nutrition-item {
+  text-align: center;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 12px;
+  border: 1px solid #e9ecef;
+}
+
+.nutrition-label {
+  display: block;
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.nutrition-value {
+  display: block;
+  font-size: 20px;
+  font-weight: 700;
+  color: #333;
+}
+
+.macros-chart {
+  margin-top: 20px;
+}
+
+.food-history {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.food-entry {
+  padding: 16px 0;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.food-entry:last-child {
+  border-bottom: none;
+}
+
+.food-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.food-description {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.food-time {
+  font-size: 14px;
+  color: #666;
+}
+
+.food-macros {
+  display: flex;
+  gap: 12px;
+  font-size: 14px;
+  color: #666;
+}
+
+.food-macros span {
+  background: #f8f9fa;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+@media (max-width: 768px) {
+  .food-log h1 {
+    font-size: 24px;
+    margin-bottom: 24px;
+  }
+  
+  .food-container {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  .food-form-card,
+  .food-summary-card,
+  .food-history-card {
+    padding: 20px;
+  }
+  
+  .macros-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .nutrition-summary {
+    grid-template-columns: 1fr;
+  }
+} 

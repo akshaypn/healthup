@@ -1,0 +1,180 @@
+.hr-log {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.hr-log h1 {
+  font-size: 32px;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 32px;
+  text-align: center;
+}
+
+.hr-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 24px;
+}
+
+.hr-form-card,
+.hr-chart-card,
+.hr-history-card {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  border: 1px solid #e9ecef;
+}
+
+.hr-form-card h2,
+.hr-chart-card h2,
+.hr-history-card h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 20px;
+}
+
+.hr-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.hr-range {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.hr-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.submit-btn {
+  flex: 1;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 16px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.submit-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.bluetooth-btn {
+  flex: 1;
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 16px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.bluetooth-btn:hover:not(:disabled) {
+  background: #218838;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+}
+
+.bluetooth-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.no-data {
+  text-align: center;
+  padding: 40px 20px;
+  color: #666;
+}
+
+.no-data p {
+  font-size: 16px;
+  margin: 0;
+}
+
+.hr-history {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.hr-entry {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.hr-entry:last-child {
+  border-bottom: none;
+}
+
+.hr-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hr-avg {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+}
+
+.hr-range {
+  font-size: 14px;
+  color: #666;
+}
+
+.hr-date {
+  font-size: 14px;
+  color: #666;
+}
+
+@media (max-width: 768px) {
+  .hr-log h1 {
+    font-size: 24px;
+    margin-bottom: 24px;
+  }
+  
+  .hr-container {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  .hr-form-card,
+  .hr-chart-card,
+  .hr-history-card {
+    padding: 20px;
+  }
+  
+  .hr-range {
+    grid-template-columns: 1fr;
+  }
+  
+  .hr-actions {
+    flex-direction: column;
+  }
+} 

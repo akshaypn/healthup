@@ -1,0 +1,124 @@
+.weight-log {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.weight-log h1 {
+  font-size: 32px;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 32px;
+  text-align: center;
+}
+
+.weight-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 24px;
+}
+
+.weight-form-card,
+.weight-chart-card,
+.weight-history-card {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  border: 1px solid #e9ecef;
+}
+
+.weight-form-card h2,
+.weight-chart-card h2,
+.weight-history-card h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 20px;
+}
+
+.weight-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.submit-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 16px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-top: 8px;
+}
+
+.submit-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.no-data {
+  text-align: center;
+  padding: 40px 20px;
+  color: #666;
+}
+
+.no-data p {
+  font-size: 16px;
+  margin: 0;
+}
+
+.weight-history {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.weight-entry {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.weight-entry:last-child {
+  border-bottom: none;
+}
+
+.weight-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+}
+
+.weight-date {
+  font-size: 14px;
+  color: #666;
+}
+
+@media (max-width: 768px) {
+  .weight-log h1 {
+    font-size: 24px;
+    margin-bottom: 24px;
+  }
+  
+  .weight-container {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  .weight-form-card,
+  .weight-chart-card,
+  .weight-history-card {
+    padding: 20px;
+  }
+} 
