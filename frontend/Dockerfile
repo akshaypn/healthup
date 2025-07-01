@@ -14,9 +14,8 @@ COPY . .
 # Build the application
 RUN npm run build
 
-# Copy PWA assets to dist directory
-RUN cp /app/public/icon-192.png /app/dist/ && \
-    cp /app/public/icon-512.png /app/dist/
+# Debug: Check what's in the dist directory
+RUN ls -la dist/ || echo "dist directory not found"
 
 # Install serve for production
 RUN npm install -g serve
