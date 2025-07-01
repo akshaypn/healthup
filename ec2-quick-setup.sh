@@ -29,10 +29,11 @@ fi
 
 # Start services
 echo "🐳 Starting HealthUp services..."
-docker compose up -d
+echo "🔨 Building Docker images (this may take a few minutes)..."
+docker compose up -d --build
 
 echo "⏳ Waiting for services to start..."
-sleep 30
+sleep 45
 
 # Check status
 if docker compose ps | grep -q "Up"; then

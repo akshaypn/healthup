@@ -191,9 +191,25 @@ docker compose up -d
 
 ## Troubleshooting
 
+### Quick Troubleshooting
+Run the automated troubleshooting script:
+```bash
+./ec2-troubleshoot.sh
+```
+
 ### Common Issues
 
-1. **Port Already in Use**
+1. **Frontend Build Fails**
+   ```bash
+   # Check frontend build logs
+   docker compose logs frontend
+   
+   # Rebuild frontend without cache
+   docker compose build frontend --no-cache
+   docker compose up -d frontend
+   ```
+
+2. **Port Already in Use**
    ```bash
    # Check what's using the port
    sudo lsof -i :3000
@@ -235,6 +251,7 @@ docker compose up -d
 - Check logs: `docker compose logs -f`
 - Check system resources: `htop`
 - Check network connectivity: `curl -I http://localhost:3000`
+- Run troubleshooting script: `./ec2-troubleshoot.sh`
 
 ## Cost Optimization
 

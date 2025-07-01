@@ -109,11 +109,12 @@ fi
 
 # Start services
 print_status "Starting HealthUp services..."
-docker compose up -d
+print_status "Building Docker images (this may take a few minutes)..."
+docker compose up -d --build
 
 # Wait for services to be ready
 print_status "Waiting for services to be ready..."
-sleep 30
+sleep 45
 
 # Check service status
 if docker compose ps | grep -q "Up"; then
