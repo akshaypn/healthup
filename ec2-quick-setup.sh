@@ -3,10 +3,30 @@
 echo "🚀 HealthUp Quick EC2 Setup"
 echo "============================"
 
-# Get EC2 public IP
-EC2_PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null || curl -s http://checkip.amazonaws.com/)
+# Get EC2 public IP - try multiple methods
+echo "🔍 Detecting EC2 public IP..."
+EC2_PUBLIC_IP=""
 
-echo "📍 EC2 Public IP: $EC2_PUBLIC_IP"
+# Try AWS metadata service first
+if curl -s http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+    EC2_PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null)
+    echo "✅ Found IP via AWS metadata: $EC2_PUBLIC_IP"
+# Try external service as fallback
+elif curl -s http://checkip.amazonaws.com/ 2>/dev/null | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+    EC2_PUBLIC_IP=$(curl -s http://checkip.amazonaws.com/ 2>/dev/null)
+    echo "✅ Found IP via external service: $EC2_PUBLIC_IP"
+else
+    echo "⚠️  Could not automatically detect public IP"
+    echo "   Please enter your EC2 public IP manually:"
+    read -p "   EC2 Public IP: " EC2_PUBLIC_IP
+fi
+
+if [ -z "$EC2_PUBLIC_IP" ]; then
+    echo "❌ No valid IP address found. Please run the script again and enter the IP manually."
+    exit 1
+fi
+
+echo "📍 Using EC2 Public IP: $EC2_PUBLIC_IP"
 echo ""
 
 # Check if .env exists
