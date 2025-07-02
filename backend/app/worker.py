@@ -3,7 +3,7 @@ import json
 from datetime import datetime, timedelta, date
 from typing import Dict, Any, Optional
 from celery import Celery
-from google import genai
+from agents import Agent, Runner, trace
 from sqlalchemy.orm import Session
 from . import models, database, crud
 from .database import get_db
@@ -111,30 +111,31 @@ def build_monthly_prompt(user_data: Dict[str, Any]) -> str:
     """
     return prompt
 
-def call_gemini_api(prompt: str, model: str = "gemini-2.0-flash-exp") -> str:
-    """Call Gemini API with rate limiting"""
-    if not token_bucket.can_make_request(model):
-        raise Exception("Rate limit exceeded")
-    
+async def call_openai_agent(prompt: str, agent_name: str = "Health Coach") -> str:
+    """Call OpenAI agent for health coaching"""
     try:
-        client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-        response = client.models.generate_content(
-            model=model,
-            contents=[prompt]
+        # Check if OpenAI API key is available
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise Exception("OPENAI_API_KEY not found")
+        
+        # Create agent
+        agent = Agent(
+            name=agent_name,
+            instructions="""You are a knowledgeable health and nutrition coach. 
+            Provide helpful, accurate, and motivating advice based on the user's health data. 
+            Be encouraging but realistic in your recommendations.""",
         )
         
-        # Set rate limit based on model
-        if "flash" in model.lower():
-            token_bucket.set_next_allowed(model, 4)  # 15 RPM = 4 seconds between calls
-        else:
-            token_bucket.set_next_allowed(model, 30)  # 2 RPM = 30 seconds between calls
-            
-        return response.text
+        # Run agent
+        with trace(f"{agent_name} Execution"):
+            result = await Runner.run(agent, prompt)
+        
+        return result.final_output if result.final_output else "No response generated"
+        
     except Exception as e:
-        if "RESOURCE_EXHAUSTED" in str(e):
-            # Exponential backoff
-            token_bucket.set_next_allowed(model, 60)
-        raise e
+        logging.error(f"Error calling OpenAI agent: {str(e)}")
+        return f"Error generating response: {str(e)}"
 
 def get_user_data_for_period(db: Session, user_id: str, period: str, period_start: date) -> Dict[str, Any]:
     """Get user data for the specified period"""
@@ -197,7 +198,7 @@ def get_user_data_for_period(db: Session, user_id: str, period: str, period_star
     }
 
 @celery_app.task
-def generate_daily_insight(user_id: str, target_date: str):
+async def generate_daily_insight(user_id: str, target_date: str):
     """Generate daily insight for a user"""
     db = next(get_db())
     try:
@@ -214,8 +215,8 @@ def generate_daily_insight(user_id: str, target_date: str):
         # Build prompt
         prompt = build_daily_prompt(user_data)
         
-        # Call Gemini API
-        insight_md = call_gemini_api(prompt, "gemini-2.0-flash-exp")
+        # Call OpenAI agent
+        insight_md = await call_openai_agent(prompt, "Daily Health Coach")
         
         # Save insight
         crud.create_ai_insight(db, user_id, "daily", target_date_obj, insight_md)
@@ -227,7 +228,7 @@ def generate_daily_insight(user_id: str, target_date: str):
         db.close()
 
 @celery_app.task
-def generate_weekly_insight(user_id: str, week_start: str):
+async def generate_weekly_insight(user_id: str, week_start: str):
     """Generate weekly insight for a user"""
     db = next(get_db())
     try:
@@ -244,8 +245,8 @@ def generate_weekly_insight(user_id: str, week_start: str):
         # Build prompt
         prompt = build_weekly_prompt(user_data)
         
-        # Call Gemini API with Pro model for better reasoning
-        insight_md = call_gemini_api(prompt, "gemini-2.0-flash-exp")
+        # Call OpenAI agent with Pro model for better reasoning
+        insight_md = await call_openai_agent(prompt, "Weekly Health Coach")
         
         # Save insight
         crud.create_ai_insight(db, user_id, "weekly", week_start_obj, insight_md)
@@ -257,7 +258,7 @@ def generate_weekly_insight(user_id: str, week_start: str):
         db.close()
 
 @celery_app.task
-def generate_monthly_insight(user_id: str, month_start: str):
+async def generate_monthly_insight(user_id: str, month_start: str):
     """Generate monthly insight for a user"""
     db = next(get_db())
     try:
@@ -274,8 +275,8 @@ def generate_monthly_insight(user_id: str, month_start: str):
         # Build prompt
         prompt = build_monthly_prompt(user_data)
         
-        # Call Gemini API with Pro model for better reasoning
-        insight_md = call_gemini_api(prompt, "gemini-2.0-flash-exp")
+        # Call OpenAI agent with Pro model for better reasoning
+        insight_md = await call_openai_agent(prompt, "Monthly Health Coach")
         
         # Save insight
         crud.create_ai_insight(db, user_id, "monthly", month_start_obj, insight_md)
@@ -287,7 +288,7 @@ def generate_monthly_insight(user_id: str, month_start: str):
         db.close()
 
 @celery_app.task
-def generate_realtime_coach(user_id: str) -> str:
+async def generate_realtime_coach(user_id: str) -> str:
     """Generate real-time coaching advice"""
     db = next(get_db())
     try:
@@ -308,7 +309,7 @@ def generate_realtime_coach(user_id: str) -> str:
         Provide 2-3 specific, actionable tips for the rest of the day. Keep it under 100 words.
         """
         
-        return call_gemini_api(prompt, "gemini-2.0-flash-exp")
+        return await call_openai_agent(prompt, "Real-time Health Coach")
     except Exception as e:
         return f"Unable to generate coaching advice: {str(e)}"
     finally:

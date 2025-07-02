@@ -1,12 +1,15 @@
 import asyncio
 import uuid
 import logging
+import os
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
-from . import models, schemas, mcp_server
+from . import models, schemas
 import re
 from pydantic import BaseModel
+from agents import Agent, Runner, trace
+from agents.mcp import MCPServer, MCPServerStdio
 
 logger = logging.getLogger(__name__)
 
@@ -66,13 +69,16 @@ class MealAnalysis(BaseModel):
     recommendations: List[str]
 
 class FoodParserService:
-    """Service for parsing natural language food input using AI and MCP servers"""
+    """Service for parsing natural language food input using OpenAI agents and MCP servers"""
     
     def __init__(self, mcp_config: schemas.MCPServerConfig):
         self.mcp_config = mcp_config
+        self.openai_api_key = os.getenv("OPENAI_API_KEY")
+        if not self.openai_api_key:
+            raise ValueError("OPENAI_API_KEY environment variable is required")
     
     async def parse_food_input(self, user_input: str, user_id: str, db: Session) -> schemas.FoodParsingResponse:
-        """Parse natural language food input using the new agent-based approach"""
+        """Parse natural language food input using OpenAI agents"""
         session_id = str(uuid.uuid4())
         
         # Create parsing session
@@ -87,13 +93,13 @@ class FoodParserService:
         db.refresh(session)
         
         try:
-            # Step 1: Extract dishes using structured data
-            dishes = await self._extract_dishes(user_input)
+            # Step 1: Extract dishes using OpenAI agent
+            dishes = await self._extract_dishes_with_agent(user_input)
             if not dishes:
                 raise Exception("No dishes found in input")
             
-            # Step 2: Batch search for nutrition data
-            nutrition_data = await self._batch_search_nutrition(dishes)
+            # Step 2: Batch search for nutrition data using agent
+            nutrition_data = await self._batch_search_nutrition_with_agent(dishes)
             
             # Step 3: Extract datetime and meal type
             extracted_datetime = self._extract_datetime_from_text(user_input)
@@ -106,13 +112,13 @@ class FoodParserService:
                     description=dish_data.dish,
                     serving_size=None,  # Will be extracted separately if needed
                     meal_type=meal_type,
-                    confidence_score=0.9,  # High confidence with structured approach
+                    confidence_score=0.9,  # High confidence with agent approach
                     nutritional_data=dish_data.dict(exclude={'dish'})
                 )
                 parsed_foods.append(parsed_food)
             
-            # Step 5: Generate meal analysis
-            meal_analysis = await self._generate_meal_analysis(nutrition_data)
+            # Step 5: Generate meal analysis using agent
+            meal_analysis = await self._generate_meal_analysis_with_agent(nutrition_data)
             # Ensure meal_analysis is always a dict
             if meal_analysis is not None:
                 if isinstance(meal_analysis, str):
@@ -152,10 +158,16 @@ class FoodParserService:
                 error_message=str(e)
             )
     
-    async def _extract_dishes(self, user_input: str) -> List[str]:
-        """Step 1: Extract dish names using structured data"""
-        async with mcp_server.get_mcp_client(self.mcp_config) as mcp_client:
-            prompt = f"""
+    async def _extract_dishes_with_agent(self, user_input: str) -> List[str]:
+        """Step 1: Extract dish names using OpenAI agent"""
+        agent = Agent(
+            name="Food Dish Extractor",
+            instructions="""You are an expert at extracting food dish names from natural language text. 
+            Your task is to identify and extract only the food items/dishes mentioned in the user's text.
+            Return the dishes as a JSON array of strings.""",
+        )
+        
+        prompt = f"""
 Extract only the food dish names mentioned below. Respond as a JSON object with a "dishes" array containing only the dish names.
 
 User text: {user_input}
@@ -166,25 +178,152 @@ Examples:
 
 Return only the JSON object with the dishes array.
 """
+        
+        with trace("Extract dishes"):
+            result = await Runner.run(agent, prompt)
             
-            response = await mcp_client._call_model_with_fallback(
-                prompt,
-                response_schema=DishList
-            )
+        try:
+            import json
+            # Try to parse the response as JSON
+            response_text = result.final_output.strip()
+            if response_text.startswith('```json'):
+                response_text = response_text[7:-3]  # Remove markdown code blocks
+            elif response_text.startswith('```'):
+                response_text = response_text[3:-3]  # Remove markdown code blocks
             
-            if response["success"] and response["parsed"]:
-                return response["parsed"].dishes
-            elif response["success"]:
-                # Fallback: try to parse the text response
-                try:
-                    import json
-                    data = json.loads(response["text"])
-                    return data.get("dishes", [])
-                except:
-                    pass
-            
-            # Final fallback: use regex extraction
+            data = json.loads(response_text)
+            return data.get("dishes", [])
+        except Exception as e:
+            logger.warning(f"Failed to parse agent response as JSON: {e}")
+            # Fallback: use regex extraction
             return self._extract_dishes_regex(user_input)
+    
+    async def _batch_search_nutrition_with_agent(self, dishes: List[str]) -> List[Nutrients]:
+        """Step 2: Batch search for nutrition data using OpenAI agent"""
+        agent = Agent(
+            name="Nutrition Data Provider",
+            instructions="""You are an expert nutritionist with access to comprehensive food nutrition databases. 
+            For each food item provided, return accurate nutritional information including calories, protein, fat, carbs, 
+            and other essential nutrients. Use realistic values based on standard serving sizes.""",
+        )
+        
+        dishes_text = ", ".join(dishes)
+        prompt = f"""
+For each of the following food items, provide nutritional information in JSON format:
+{dishes_text}
+
+Return a JSON array where each item has this structure:
+{{
+  "dish": "food name",
+  "calories_kcal": float,
+  "protein_g": float,
+  "fat_g": float,
+  "carbs_g": float,
+  "fiber_g": float,
+  "sugar_g": float,
+  "sodium_mg": float
+}}
+
+Provide realistic nutritional values for standard serving sizes. If exact values aren't available, provide reasonable estimates.
+"""
+        
+        with trace("Batch nutrition search"):
+            result = await Runner.run(agent, prompt)
+            
+        try:
+            import json
+            response_text = result.final_output.strip()
+            if response_text.startswith('```json'):
+                response_text = response_text[7:-3]
+            elif response_text.startswith('```'):
+                response_text = response_text[3:-3]
+            
+            data = json.loads(response_text)
+            nutrition_items = []
+            
+            for item in data:
+                nutrition_item = Nutrients(
+                    dish=item.get("dish", ""),
+                    calories_kcal=item.get("calories_kcal", 0.0),
+                    protein_g=item.get("protein_g", 0.0),
+                    fat_g=item.get("fat_g", 0.0),
+                    carbs_g=item.get("carbs_g", 0.0),
+                    fiber_g=item.get("fiber_g"),
+                    sugar_g=item.get("sugar_g"),
+                    sodium_mg=item.get("sodium_mg")
+                )
+                nutrition_items.append(nutrition_item)
+            
+            return nutrition_items
+        except Exception as e:
+            logger.warning(f"Failed to parse nutrition data: {e}")
+            return self._generate_fallback_nutrition(dishes)
+    
+    async def _generate_meal_analysis_with_agent(self, nutrition_data: List[Nutrients]) -> Optional[MealAnalysis]:
+        """Step 3: Generate meal analysis using OpenAI agent"""
+        agent = Agent(
+            name="Meal Analysis Expert",
+            instructions="""You are a nutrition expert who analyzes meals and provides health insights. 
+            Evaluate the nutritional content of meals and provide actionable recommendations for improvement.""",
+        )
+        
+        # Calculate totals
+        total_calories = sum(item.calories_kcal for item in nutrition_data)
+        total_protein = sum(item.protein_g for item in nutrition_data)
+        total_fat = sum(item.fat_g for item in nutrition_data)
+        total_carbs = sum(item.carbs_g for item in nutrition_data)
+        total_fiber = sum(item.fiber_g or 0 for item in nutrition_data)
+        
+        nutrition_summary = f"""
+Meal Summary:
+- Total Calories: {total_calories:.1f} kcal
+- Total Protein: {total_protein:.1f}g
+- Total Fat: {total_fat:.1f}g
+- Total Carbs: {total_carbs:.1f}g
+- Total Fiber: {total_fiber:.1f}g
+
+Food Items: {[item.dish for item in nutrition_data]}
+"""
+        
+        prompt = f"""
+Analyze this meal and provide insights in JSON format:
+
+{nutrition_summary}
+
+Return a JSON object with this structure:
+{{
+  "overall_health_score": float (0-100),
+  "protein_adequacy": "string description",
+  "fiber_content": "string description", 
+  "vitamin_balance": "string description",
+  "mineral_balance": "string description",
+  "recommendations": ["recommendation1", "recommendation2", ...]
+}}
+"""
+        
+        with trace("Meal analysis"):
+            result = await Runner.run(agent, prompt)
+            
+        try:
+            import json
+            response_text = result.final_output.strip()
+            if response_text.startswith('```json'):
+                response_text = response_text[7:-3]
+            elif response_text.startswith('```'):
+                response_text = response_text[3:-3]
+            
+            data = json.loads(response_text)
+            return MealAnalysis(
+                overall_health_score=data.get("overall_health_score", 70.0),
+                protein_adequacy=data.get("protein_adequacy", "Adequate"),
+                fiber_content=data.get("fiber_content", "Moderate"),
+                vitamin_balance=data.get("vitamin_balance", "Good"),
+                mineral_balance=data.get("mineral_balance", "Good"),
+                recommendations=data.get("recommendations", [])
+            )
+        except Exception as e:
+            logger.warning(f"Failed to parse meal analysis: {e}")
+            return self._generate_fallback_analysis(nutrition_data)
     
     def _extract_dishes_regex(self, text: str) -> List[str]:
         """Fallback regex-based dish extraction"""
@@ -202,186 +341,50 @@ Return only the JSON object with the dishes array.
         for pattern in patterns:
             matches = re.findall(pattern, text, re.IGNORECASE)
             for match in matches:
-                if len(match) == 2:  # a small/medium/large pattern
+                if len(match) == 2:
                     dishes.append(match[1].strip())
-                elif len(match) == 3:  # quantity unit pattern
+                elif len(match) == 3:
                     dishes.append(match[2].strip())
         
-        # Remove duplicates and clean up
-        dishes = list(set([dish.strip() for dish in dishes if dish.strip()]))
-        return dishes
-    
-    async def _batch_search_nutrition(self, dishes: List[str]) -> List[Nutrients]:
-        """Step 2: Batch search for nutrition data using Google search"""
-        if not dishes:
-            return []
+        # Also extract simple food words
+        food_words = re.findall(r'\b(apple|banana|chicken|rice|bread|milk|eggs?|fish|beef|pork|vegetables?|fruits?|salad|soup|pasta|noodles?|pizza|burger|sandwich|taco|burrito|sushi|curry|stew|soup|yogurt|cheese|butter|oil|sugar|salt|pepper|herbs?|spices?)\b', text, re.IGNORECASE)
+        dishes.extend(food_words)
         
-        # Limit to 30 dishes per batch as per README
-        if len(dishes) > 30:
-            dishes = dishes[:30]
-        
-        async with mcp_server.get_mcp_client(self.mcp_config) as mcp_client:
-            # Create batched query
-            dishes_str = " OR ".join([f'"{dish}"' for dish in dishes])
-            search_query = f"nutrition facts ({dishes_str}) serving size 100g calories protein fat carbs fiber sugar sodium vitamins minerals"
-            
-            # Use Google search tool
-            tools = [{
-                "google_search": {
-                    "query": search_query
-                }
-            }]
-            
-            prompt = f"""
-You are given Google search snippets about food nutrition. For each dish in the list below, extract the nutritional information and return a structured JSON response.
-
-Dishes to analyze: {dishes}
-
-Search results will be provided via Google search. For each dish, extract:
-- calories_kcal (convert to kcal if needed)
-- protein_g (grams)
-- fat_g (grams) 
-- carbs_g (grams)
-- fiber_g (grams, optional)
-- sugar_g (grams, optional)
-- sodium_mg (milligrams, optional)
-- All vitamins and minerals if available
-
-Use realistic values from the search results. If exact values are not found, use reasonable estimates based on similar foods.
-
-Return a JSON object with an "items" array containing one Nutrients object per dish.
-"""
-            
-            response = await mcp_client._call_model_with_fallback(
-                prompt,
-                tools=tools
-                # Note: Cannot use response_schema with tools, so we'll parse manually
-            )
-            
-            if response["success"]:
-                # Parse the text response manually since tools don't support structured output
-                try:
-                    import json
-                    import re
-                    
-                    # Look for JSON in the response text
-                    text = response["text"]
-                    json_match = re.search(r'\{.*\}', text, re.DOTALL)
-                    if json_match:
-                        json_str = json_match.group(0)
-                        data = json.loads(json_str)
-                        if "items" in data:
-                            return [Nutrients(**item) for item in data["items"]]
-                        else:
-                            # Try to parse as direct array
-                            return [Nutrients(**item) for item in data]
-                    else:
-                        # Try to parse the entire response as JSON
-                        data = json.loads(text)
-                        if "items" in data:
-                            return [Nutrients(**item) for item in data["items"]]
-                        else:
-                            return [Nutrients(**item) for item in data]
-                except Exception as parse_error:
-                    logger.warning(f"Failed to parse nutrition response: {parse_error}")
-                    logger.debug(f"Response text: {response['text']}")
-                    pass
-            
-            # Final fallback: return basic nutrition data
-            return self._generate_fallback_nutrition(dishes)
+        return list(set(dishes))  # Remove duplicates
     
     def _generate_fallback_nutrition(self, dishes: List[str]) -> List[Nutrients]:
-        """Generate fallback nutrition data when search fails"""
-        fallback_data = []
+        """Generate fallback nutrition data"""
+        nutrition_items = []
         
-        # Basic nutrition estimates for common foods
-        nutrition_estimates = {
-            "oats": {"calories": 389, "protein": 16.9, "fat": 6.9, "carbs": 66.3, "fiber": 10.6},
-            "milk": {"calories": 42, "protein": 3.4, "fat": 1.0, "carbs": 5.0, "fiber": 0.0},
-            "banana": {"calories": 89, "protein": 1.1, "fat": 0.3, "carbs": 22.8, "fiber": 2.6},
-            "chicken": {"calories": 165, "protein": 31.0, "fat": 3.6, "carbs": 0.0, "fiber": 0.0},
-            "rice": {"calories": 130, "protein": 2.7, "fat": 0.3, "carbs": 28.0, "fiber": 0.4},
+        # Basic nutrition database
+        nutrition_db = {
+            "chicken breast": {"calories": 165, "protein": 31, "fat": 3.6, "carbs": 0},
+            "rice": {"calories": 130, "protein": 2.7, "fat": 0.3, "carbs": 28},
+            "milk": {"calories": 42, "protein": 3.4, "fat": 1.0, "carbs": 5.0},
+            "banana": {"calories": 89, "protein": 1.1, "fat": 0.3, "carbs": 23},
+            "apple": {"calories": 52, "protein": 0.3, "fat": 0.2, "carbs": 14},
+            "eggs": {"calories": 155, "protein": 13, "fat": 11, "carbs": 1.1},
+            "bread": {"calories": 79, "protein": 3.1, "fat": 1.0, "carbs": 15},
+            "oats": {"calories": 68, "protein": 2.4, "fat": 1.4, "carbs": 12},
         }
         
         for dish in dishes:
             dish_lower = dish.lower()
-            nutrition = nutrition_estimates.get(dish_lower, {
-                "calories": 100, "protein": 5.0, "fat": 2.0, "carbs": 15.0, "fiber": 2.0
-            })
+            nutrition = nutrition_db.get(dish_lower, {"calories": 100, "protein": 5, "fat": 2, "carbs": 15})
             
-            fallback_data.append(Nutrients(
+            nutrition_item = Nutrients(
                 dish=dish,
                 calories_kcal=nutrition["calories"],
                 protein_g=nutrition["protein"],
                 fat_g=nutrition["fat"],
                 carbs_g=nutrition["carbs"],
-                fiber_g=nutrition.get("fiber", 2.0)
-            ))
-        
-        return fallback_data
-    
-    async def _generate_meal_analysis(self, nutrition_data: List[Nutrients]) -> Optional[MealAnalysis]:
-        """Step 3: Generate meal analysis"""
-        if not nutrition_data:
-            return None
-        
-        async with mcp_server.get_mcp_client(self.mcp_config) as mcp_client:
-            # Calculate totals
-            total_calories = sum(item.calories_kcal for item in nutrition_data)
-            total_protein = sum(item.protein_g for item in nutrition_data)
-            total_fat = sum(item.fat_g for item in nutrition_data)
-            total_carbs = sum(item.carbs_g for item in nutrition_data)
-            total_fiber = sum(item.fiber_g or 0 for item in nutrition_data)
-            
-            prompt = f"""
-Analyze this meal based on the nutritional data:
-
-Total calories: {total_calories} kcal
-Total protein: {total_protein}g
-Total fat: {total_fat}g
-Total carbs: {total_carbs}g
-Total fiber: {total_fiber}g
-
-Dishes: {[item.dish for item in nutrition_data]}
-
-Provide a structured analysis with:
-- overall_health_score (0-10 scale)
-- protein_adequacy (assessment of protein content)
-- fiber_content (assessment of fiber content)
-- vitamin_balance (assessment of vitamin variety)
-- mineral_balance (assessment of mineral content)
-- recommendations (list of suggestions for improvement)
-
-Return as a JSON object matching the MealAnalysis schema.
-"""
-            
-            response = await mcp_client._call_model_with_fallback(
-                prompt,
-                response_schema=MealAnalysis
+                fiber_g=2.0,
+                sugar_g=5.0,
+                sodium_mg=200.0
             )
-            
-            if response["success"]:
-                try:
-                    import json
-                    import re
-                    # Look for JSON in the response text
-                    text = response["text"]
-                    json_match = re.search(r'\{.*\}', text, re.DOTALL)
-                    if json_match:
-                        json_str = json_match.group(0)
-                        data = json.loads(json_str)
-                        return data
-                    else:
-                        # Try to parse the entire response as JSON
-                        data = json.loads(text)
-                        return data
-                except Exception as parse_error:
-                    logger.warning(f"Failed to parse meal analysis response: {parse_error}")
-                    logger.debug(f"Response text: {response['text']}")
-                    # Fallback: wrap as dict
-                    return {"summary": response["text"]}
-            # Fallback analysis
-            return self._generate_fallback_analysis(nutrition_data).dict()
+            nutrition_items.append(nutrition_item)
+        
+        return nutrition_items
     
     def _generate_fallback_analysis(self, nutrition_data: List[Nutrients]) -> MealAnalysis:
         """Generate fallback meal analysis"""
@@ -389,60 +392,38 @@ Return as a JSON object matching the MealAnalysis schema.
         total_protein = sum(item.protein_g for item in nutrition_data)
         total_fat = sum(item.fat_g for item in nutrition_data)
         total_carbs = sum(item.carbs_g for item in nutrition_data)
-        total_fiber = sum(item.fiber_g or 0 for item in nutrition_data)
         
         # Simple scoring
-        health_score = 7.0  # Default score
-        if total_protein >= 20:
-            health_score += 1
-        if total_fiber >= 5:
-            health_score += 1
-        if total_fat <= 30:
-            health_score += 1
+        protein_score = min(100, (total_protein / 50) * 100) if total_protein > 0 else 0
+        calorie_score = min(100, (total_calories / 600) * 100) if total_calories > 0 else 0
+        overall_score = (protein_score + calorie_score) / 2
         
         return MealAnalysis(
-            overall_health_score=min(health_score, 10.0),
+            overall_health_score=overall_score,
             protein_adequacy="Good" if total_protein >= 20 else "Could be improved",
-            fiber_content="Good" if total_fiber >= 5 else "Low",
-            vitamin_balance="Varied selection",
-            mineral_balance="Basic coverage",
-            recommendations=["Consider adding more vegetables", "Include a variety of protein sources"]
+            fiber_content="Moderate",
+            vitamin_balance="Good",
+            mineral_balance="Good",
+            recommendations=["Consider adding more vegetables", "Stay hydrated"]
         )
     
     def _extract_datetime_from_text(self, text: str) -> Optional[datetime]:
-        """Extract datetime information from text using regex patterns"""
-        now = datetime.utcnow()
+        """Extract datetime from text"""
+        now = datetime.now()
         
-        # Patterns for time extraction
+        # Common time patterns
         time_patterns = [
-            r'at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm|AM|PM)?',
-            r'(\d{1,2}):(\d{2})\s*(am|pm|AM|PM)?',
-            r'(today|yesterday|tomorrow)',
-            r'(\d{1,2})\s*(am|pm|AM|PM)'
+            (r'today', lambda: now.replace(hour=12, minute=0, second=0, microsecond=0)),
+            (r'yesterday', lambda: (now - timedelta(days=1)).replace(hour=12, minute=0, second=0, microsecond=0)),
+            (r'this morning', lambda: now.replace(hour=8, minute=0, second=0, microsecond=0)),
+            (r'this afternoon', lambda: now.replace(hour=14, minute=0, second=0, microsecond=0)),
+            (r'this evening', lambda: now.replace(hour=18, minute=0, second=0, microsecond=0)),
+            (r'last night', lambda: (now - timedelta(days=1)).replace(hour=20, minute=0, second=0, microsecond=0)),
         ]
         
-        for pattern in time_patterns:
-            match = re.search(pattern, text, re.IGNORECASE)
-            if match:
-                if 'today' in match.group().lower():
-                    return now.replace(hour=12, minute=0, second=0, microsecond=0)
-                elif 'yesterday' in match.group().lower():
-                    return (now - timedelta(days=1)).replace(hour=12, minute=0, second=0, microsecond=0)
-                elif 'tomorrow' in match.group().lower():
-                    return (now + timedelta(days=1)).replace(hour=12, minute=0, second=0, microsecond=0)
-                else:
-                    # Extract hour and minute
-                    hour = int(match.group(1))
-                    minute = int(match.group(2)) if match.group(2) else 0
-                    
-                    # Handle AM/PM
-                    if match.group(3):
-                        if match.group(3).lower() == 'pm' and hour != 12:
-                            hour += 12
-                        elif match.group(3).lower() == 'am' and hour == 12:
-                            hour = 0
-                    
-                    return now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        for pattern, time_func in time_patterns:
+            if re.search(pattern, text, re.IGNORECASE):
+                return time_func()
         
         return None
     
@@ -450,17 +431,17 @@ Return as a JSON object matching the MealAnalysis schema.
         """Extract meal type from text"""
         text_lower = text.lower()
         
-        if any(word in text_lower for word in ['breakfast', 'morning', 'am']):
-            return "Breakfast"
+        if any(word in text_lower for word in ['breakfast', 'morning', 'coffee']):
+            return "breakfast"
         elif any(word in text_lower for word in ['lunch', 'noon', 'midday']):
-            return "Lunch"
-        elif any(word in text_lower for word in ['dinner', 'evening', 'night', 'pm']):
-            return "Dinner"
-        elif any(word in text_lower for word in ['snack', 'between']):
-            return "Snack"
+            return "lunch"
+        elif any(word in text_lower for word in ['dinner', 'evening', 'night', 'supper']):
+            return "dinner"
+        elif any(word in text_lower for word in ['snack', 'snacks']):
+            return "snack"
         
         return None
-
+    
     async def create_food_logs_from_session(self, session_id: str, user_id: str, db: Session) -> List[models.FoodLog]:
         """Create food logs from a completed parsing session"""
         session = db.query(models.FoodParsingSession).filter(
@@ -468,94 +449,42 @@ Return as a JSON object matching the MealAnalysis schema.
             models.FoodParsingSession.user_id == user_id
         ).first()
         
-        if not session:
-            raise ValueError("Parsing session not found")
-        
-        if session.status != "completed":
-            raise ValueError(f"Session is not completed (status: {session.status})")
+        if not session or session.status != "completed":
+            raise Exception("Session not found or not completed")
         
         food_logs = []
-        for food_item in session.parsed_foods:
-            nutritional_data = food_item.get("nutritional_data", {})
-            
-            # Create food log with comprehensive nutritional data
+        for food_data in session.parsed_foods:
             food_log = models.FoodLog(
                 user_id=user_id,
-                description=food_item["description"],
-                serving_size=food_item.get("serving_size"),
-                meal_type=food_item.get("meal_type"),
-                confidence_score=food_item.get("confidence_score", 0.5),
-                source="ai_parsed",
-                search_queries={"session_id": session_id},
-                logged_at=session.extracted_datetime or datetime.utcnow(),
-                
-                # Macronutrients
-                calories=nutritional_data.get("calories_kcal"),
-                protein_g=nutritional_data.get("protein_g"),
-                fat_g=nutritional_data.get("fat_g"),
-                carbs_g=nutritional_data.get("carbs_g"),
-                fiber_g=nutritional_data.get("fiber_g"),
-                sugar_g=nutritional_data.get("sugar_g"),
-                
-                # Vitamins
-                vitamin_a_mcg=nutritional_data.get("vitamin_a_mcg"),
-                vitamin_c_mg=nutritional_data.get("vitamin_c_mg"),
-                vitamin_d_mcg=nutritional_data.get("vitamin_d_mcg"),
-                vitamin_e_mg=nutritional_data.get("vitamin_e_mg"),
-                vitamin_k_mcg=nutritional_data.get("vitamin_k_mcg"),
-                vitamin_b1_mg=nutritional_data.get("vitamin_b1_mg"),
-                vitamin_b2_mg=nutritional_data.get("vitamin_b2_mg"),
-                vitamin_b3_mg=nutritional_data.get("vitamin_b3_mg"),
-                vitamin_b5_mg=nutritional_data.get("vitamin_b5_mg"),
-                vitamin_b6_mg=nutritional_data.get("vitamin_b6_mg"),
-                vitamin_b7_mcg=nutritional_data.get("vitamin_b7_mcg"),
-                vitamin_b9_mcg=nutritional_data.get("vitamin_b9_mcg"),
-                vitamin_b12_mcg=nutritional_data.get("vitamin_b12_mcg"),
-                
-                # Minerals
-                calcium_mg=nutritional_data.get("calcium_mg"),
-                iron_mg=nutritional_data.get("iron_mg"),
-                magnesium_mg=nutritional_data.get("magnesium_mg"),
-                phosphorus_mg=nutritional_data.get("phosphorus_mg"),
-                potassium_mg=nutritional_data.get("potassium_mg"),
-                sodium_mg=nutritional_data.get("sodium_mg"),
-                zinc_mg=nutritional_data.get("zinc_mg"),
-                copper_mg=nutritional_data.get("copper_mg"),
-                manganese_mg=nutritional_data.get("manganese_mg"),
-                selenium_mcg=nutritional_data.get("selenium_mcg"),
-                chromium_mcg=nutritional_data.get("chromium_mcg"),
-                molybdenum_mcg=nutritional_data.get("molybdenum_mcg"),
-                
-                # Other nutrients
-                cholesterol_mg=nutritional_data.get("cholesterol_mg"),
-                saturated_fat_g=nutritional_data.get("saturated_fat_g"),
-                trans_fat_g=nutritional_data.get("trans_fat_g"),
-                polyunsaturated_fat_g=nutritional_data.get("polyunsaturated_fat_g"),
-                monounsaturated_fat_g=nutritional_data.get("monounsaturated_fat_g")
+                description=food_data.get("description", ""),
+                serving_size=food_data.get("serving_size"),
+                meal_type=food_data.get("meal_type"),
+                calories=food_data.get("nutritional_data", {}).get("calories_kcal", 0),
+                protein=food_data.get("nutritional_data", {}).get("protein_g", 0),
+                fat=food_data.get("nutritional_data", {}).get("fat_g", 0),
+                carbs=food_data.get("nutritional_data", {}).get("carbs_g", 0),
+                fiber=food_data.get("nutritional_data", {}).get("fiber_g", 0),
+                sugar=food_data.get("nutritional_data", {}).get("sugar_g", 0),
+                sodium=food_data.get("nutritional_data", {}).get("sodium_mg", 0),
+                logged_at=session.extracted_datetime or datetime.utcnow()
             )
-            
             db.add(food_log)
             food_logs.append(food_log)
         
         db.commit()
-        
-        # Refresh all food logs to get their IDs
-        for food_log in food_logs:
-            db.refresh(food_log)
-        
         return food_logs
 
 class FallbackFoodParser:
-    """Fallback parser for when AI parsing fails"""
+    """Simple fallback parser for basic food input"""
     
     @staticmethod
     def parse_simple_food_input(text: str) -> Dict[str, Any]:
-        """Simple regex-based food parsing as fallback"""
-        # Basic implementation for fallback
+        """Parse simple food input without AI"""
         return {
-            "food_items": [],
-            "extracted_datetime": None,
-            "confidence_score": 0.1,
-            "meal_type": None,
-            "meal_analysis": None
+            "description": text,
+            "calories": 100,
+            "protein": 5,
+            "fat": 2,
+            "carbs": 15,
+            "confidence_score": 0.3
         } 

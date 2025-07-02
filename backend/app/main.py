@@ -28,7 +28,7 @@ app.add_middleware(
 )
 # MCP Server configuration
 mcp_config = schemas.MCPServerConfig(
-    api_key=os.getenv("GEMINI_API_KEY"),
+    api_key=os.getenv("OPENAI_API_KEY"),
     timeout=int(os.getenv("MCP_TIMEOUT", "30"))
 )
 
