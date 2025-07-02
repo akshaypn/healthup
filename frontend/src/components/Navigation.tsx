@@ -7,6 +7,14 @@ const Navigation: React.FC = () => {
   const { logout } = useAuth();
   const location = useLocation();
 
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
+
   const navItems = [
     { path: '/', label: 'Dashboard', icon: '📊' },
     { path: '/weight', label: 'Weight', icon: '⚖️' },
@@ -20,7 +28,7 @@ const Navigation: React.FC = () => {
     <nav className="navigation">
       <div className="nav-header">
         <h1>HealthUp</h1>
-        <button onClick={logout} className="logout-btn">
+        <button onClick={handleLogout} className="logout-btn">
           Logout
         </button>
       </div>

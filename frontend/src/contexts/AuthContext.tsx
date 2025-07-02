@@ -11,8 +11,9 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   loading: boolean;
+  getAuthHeaders: () => { Authorization: string } | undefined;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -34,35 +35,83 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for stored token on app load
-    const token = localStorage.getItem('token');
-    if (token) {
-      // Validate token with backend
-      validateToken(token);
-    } else {
-      setLoading(false);
-    }
+    // Check authentication status on app load
+    checkAuthStatus();
   }, []);
 
-  const validateToken = async (token: string) => {
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('access_token');
+    return token ? { Authorization: `Bearer ${token}` } : undefined;
+  };
+
+  const checkAuthStatus = async () => {
     try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+
       const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/me`, {
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
         }
       });
       
       if (response.ok) {
         const userData = await response.json();
         setUser(userData);
+      } else if (response.status === 401) {
+        // Try to refresh the token
+        await refreshAccessToken();
       } else {
-        localStorage.removeItem('token');
+        setUser(null);
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
       }
     } catch (error) {
-      console.error('Token validation failed:', error);
-      localStorage.removeItem('token');
+      console.error('Auth status check failed:', error);
+      setUser(null);
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const refreshAccessToken = async () => {
+    try {
+      const refreshToken = localStorage.getItem('refresh_token');
+      if (!refreshToken) {
+        setUser(null);
+        return;
+      }
+
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${refreshToken}`,
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        localStorage.setItem('access_token', data.access_token);
+        localStorage.setItem('refresh_token', data.refresh_token);
+        setUser(data.user);
+      } else {
+        setUser(null);
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+      }
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+      setUser(null);
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
     }
   };
 
@@ -77,12 +126,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
 
       if (!response.ok) {
-        throw new Error('Login failed');
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Login failed');
       }
 
       const data = await response.json();
-      localStorage.setItem('token', data.access_token);
-      setUser({ id: data.user_id, email });
+      localStorage.setItem('access_token', data.access_token);
+      localStorage.setItem('refresh_token', data.refresh_token);
+      setUser(data.user);
     } catch (error) {
       console.error('Login error:', error);
       throw error;
@@ -100,7 +151,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
 
       if (!response.ok) {
-        throw new Error('Registration failed');
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Registration failed');
       }
 
       // Auto-login after successful registration
@@ -111,9 +163,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    setUser(null);
+  const logout = async () => {
+    try {
+      await fetch(`${import.meta.env.VITE_API_URL}/auth/logout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        }
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      setUser(null);
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+    }
   };
 
   const value: AuthContextType = {
@@ -123,6 +188,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     register,
     logout,
     loading,
+    getAuthHeaders,
   };
 
   return (

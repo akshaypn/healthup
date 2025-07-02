@@ -2,7 +2,8 @@ alembic==1.16.2
 amqp==5.3.1
 annotated-types==0.7.0
 anyio==4.9.0
-bcrypt==4.3.0
+bcrypt==3.2.2
+passlib==1.7.4
 billiard==4.2.1
 celery==5.5.3
 certifi==2025.6.15
@@ -17,11 +18,10 @@ ecdsa==0.19.1
 email_validator==2.2.0
 fastapi==0.115.14
 fastapi-cli==0.0.7
-google-genai
+google-genai==1.24.0
 greenlet==3.2.3
 h11==0.16.0
 httpcore==1.0.9
-httptools==0.6.4
 httpx==0.28.1
 idna==3.10
 itsdangerous==2.2.0
@@ -33,7 +33,6 @@ MarkupSafe==3.0.2
 mdurl==0.1.2
 orjson==3.10.18
 packaging==25.0
-passlib==1.7.4
 prompt_toolkit==3.0.51
 psycopg2-binary==2.9.10
 pyasn1==0.6.1

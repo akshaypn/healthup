@@ -19,7 +19,7 @@ const Insights: React.FC = () => {
 
   const fetchInsights = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('access_token');
       const periods = ['daily', 'weekly', 'monthly'];
       
       const insightsData: { [key: string]: Insight } = {};

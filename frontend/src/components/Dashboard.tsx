@@ -49,7 +49,7 @@ const Dashboard: React.FC = () => {
 
   const fetchDashboardData = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('access_token');
       const response = await fetch(`${import.meta.env.VITE_API_URL}/dashboard`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -154,9 +154,9 @@ const Dashboard: React.FC = () => {
         <div className="dashboard-card">
           <h2>Weekly Weight Trend</h2>
           {weightChartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={200}>
+          <ResponsiveContainer width="100%" height={200}>
               <LineChart data={weightChartData}>
-                <CartesianGrid strokeDasharray="3 3" />
+              <CartesianGrid strokeDasharray="3 3" />
                 <XAxis 
                   dataKey="date" 
                   tick={{ fontSize: 12 }}
@@ -180,8 +180,8 @@ const Dashboard: React.FC = () => {
                   strokeWidth={2}
                   dot={{ fill: '#8884d8', strokeWidth: 2, r: 4 }}
                 />
-              </LineChart>
-            </ResponsiveContainer>
+            </LineChart>
+          </ResponsiveContainer>
           ) : (
             <div className="no-data">
               <p>No weight data yet. Log your first weight to see your trend!</p>

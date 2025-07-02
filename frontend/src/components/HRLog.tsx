@@ -37,7 +37,7 @@ const HRLog: React.FC = () => {
 
   const fetchHRHistory = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('access_token');
       const response = await fetch(`${import.meta.env.VITE_API_URL}/hr/history`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -62,7 +62,7 @@ const HRLog: React.FC = () => {
     setMessage('');
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('access_token');
       const response = await fetch(`${import.meta.env.VITE_API_URL}/hr`, {
         method: 'POST',
         headers: {

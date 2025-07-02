@@ -311,3 +311,133 @@ For support and questions:
 - FastAPI for the excellent web framework
 - React team for the amazing frontend framework
 - The open-source community for various libraries and tools
+
+
+### Gemini AI API Cheatsheet
+
+## Free-tier rate-limit lookup table (Gemini & related models)
+
+| Model (version)                                | Typical sweet-spot use-case                                                     | Max context (tokens)                                             | Free-tier RPM                                                                                                | Free-tier RPD                                               | Free-tier TPM†                          | Notes / standout strengths                                                                                   |
+| ---------------------------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| **Gemini 2.5 Pro (Code Assist / CLI preview)** | Large-context coding, multi-step reasoning, exploratory chat                    | **1 M** tokens window 🔥 ([indiatimes.com][1], [blog.google][2]) | **60** ([indiatimes.com][1])                                                                                 | **1 000** ([blog.google][2])                                | n/s (not disclosed)                     | Highest free RPM/RPD today; works only via Gemini CLI or Code Assist licence. Great for code & long reports. |
+| **Gemini 1.5 Flash (GA)**                      | Real-time chat, rapid summarisation, long-doc Q\&A                              | 1 M tokens                                                       | 15 ([googlecloudcommunity.com][3], [uctoday.com][4])                                                         | 1 500 ([googlecloudcommunity.com][3], [uctoday.com][4])     | 1 M ([uctoday.com][4], [zapier.com][5]) | Cheapest, fastest multimodal model; batch work to exploit high TPM.                                          |
+| **Gemini 1.5 Pro (GA)**                        | Precise reasoning, tool-calling, dense coding tasks where Flash is too light    | 1 M tokens                                                       | **2** ([googlecloudcommunity.com][3], [techtarget.com][6])                                                   | **50** ([googlecloudcommunity.com][3], [techtarget.com][6]) | \~32 k ([neuroflash.com][7])            | Excellent quality but severe quotas—use only for “needle-in-haystack” problems.                              |
+| **Gemini 1.0 Pro (text / image)**              | Stable baseline for production chatbots & RAG; better availability than 1.5 Pro | 32 k tokens                                                      | 15 (60 RPM in AI Studio) ([zapier.com][5], [reddit.com][8])                                                  | 1 500 (RPD) ([zapier.com][5])                               | 1 M ([zapier.com][5])                   | Good fallback when 1.5-series is over-quota; vision input supported.                                         |
+| **Gemini Pro Vision (1.0)**                    | Image + text reasoning (alt-text, diagrams, OCR extraction)                     | 32 k tokens                                                      | 60 RPM (AI Studio only) ([reddit.com][8])                                                                    | n/s (typ. 1 500/day like Pro)                               | n/s                                     | Use in AI Studio for free visual tasks; API key currently text-only.                                         |
+| **Text Embedding 004**                         | High-dimensional embeddings for search / clustering                             | 20 k tokens / request; 250 texts                                 | Quota varies by region (Vertex AI) – \~1 000 RPM project-wide ([cloud.google.com][9], [cloud.google.com][9]) | –                                                           | –                                       | Each request can batch 250 texts—use batching to stay inside quotas.                                         |
+| **Gemini 2.5 Flash TTS (preview)**             | Budget speech synthesis                                                         | 128 k prompt                                                     | 15 RPM (preview) ([ai.google.dev][10])                                                                       | 500 RPD (shared) ([ai.google.dev][10])                      | –                                       | Audio output free but quota tight; great for small voice prototypes.                                         |
+
+† **TPM = input tokens per minute** that the backend will actually count against your project.
+
+---
+
+## How to choose the right free model
+
+### 1. Prioritise **rate-limit headroom**
+
+* If you expect spiky usage, **Gemini 2.5 Pro via the free Code Assist licence** is the only option that rivals paid-tier headroom (60 RPM / 1 000 RPD). ([indiatimes.com][1], [blog.google][2])
+* For always-on bots, **Gemini 1.5 Flash** offers the best sustained quota (15 RPM, 1 500 RPD) while still supporting the full 1 M-token context window. ([googlecloudcommunity.com][3], [uctoday.com][4])
+
+### 2. Match **latency vs quality**
+
+* **Flash** is “good enough” for summarisation, support chat, or rapid multi-modal extraction, and its responses arrive 2-3× faster than Pro. ([uctoday.com][4])
+* **Pro (1.5 / 2.5)** shines in complex planning, chain-of-thought, or tricky code bases where Flash may hallucinate. Be prepared to throttle calls aggressively. ([techtarget.com][6])
+
+### 3. Exploit **batching & streaming**
+
+* Free tokens-per-minute allowances are huge (Flash offers 1 M TPM), so bundle multiple tasks into one request instead of separate calls. ([zapier.com][5])
+* Stream responses to the client to start processing while the model is still finishing—this keeps perceived latency low without extra quota cost.
+
+### 4. Use **AI Studio** for vision & prototyping
+
+* AI Studio ignores some API-key limits (e.g., 60 RPM for Pro Vision) and costs nothing; build your prototype there, then migrate to API once flow stabilises. ([reddit.com][8])
+
+### 5. Plan for **inevitable quota hits**
+
+Even with the most generous free limits, you will eventually hit ceilings if your project scales:
+
+* **Caching** common system prompts locally—free tier doesn’t include server-side context caching ([zapier.com][5])
+* **Rotate** among multiple Google Cloud projects (within ToS) to sandbox experiments from production usage.
+* **Trigger back-off** (exponential retry) rather than blind retries—Google throttles harder after repeated breaches.
+
+
+
+## Code examples
+
+# normal inference
+```python 
+
+from google import genai
+from google.genai import types
+
+client = genai.Client()
+
+response = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents=["Explain how AI works"],
+    config=types.GenerateContentConfig(
+        temperature=0.1
+    )
+)
+print(response.text)
+
+```
+#structure output 
+
+```python
+
+from google import genai
+from pydantic import BaseModel
+
+class Recipe(BaseModel):
+    recipe_name: str
+    ingredients: list[str]
+
+client = genai.Client()
+response = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents="List a few popular cookie recipes, and include the amounts of ingredients.",
+    config={
+        "response_mime_type": "application/json",
+        "response_schema": list[Recipe],
+    },
+)
+# Use the response as a JSON string.
+print(response.text)
+
+# Use instantiated objects.
+my_recipes: list[Recipe] = response.parsed
+
+```
+
+# Google search grounding
+
+```python
+from google import genai
+from google.genai import types
+
+# Configure the client
+client = genai.Client()
+
+# Define the grounding tool
+grounding_tool = types.Tool(
+    google_search=types.GoogleSearch()
+)
+
+# Configure generation settings
+config = types.GenerateContentConfig(
+    tools=[grounding_tool]
+)
+
+# Make the request
+response = client.models.generate_content(
+    model="gemini-2.5-flash",
+    contents="Who won the euro 2024?",
+    config=config,
+)
+
+# Print the grounded response
+print(response.text)
+
+```
+
