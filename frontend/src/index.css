@@ -11,6 +11,7 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%; /* Prevent text scaling on iOS */
 }
 
 a {
@@ -28,11 +29,152 @@ body {
   place-items: center;
   min-width: 320px;
   min-height: 100vh;
+  /* Better mobile viewport handling */
+  width: 100%;
+  max-width: 100vw;
 }
 
 h1 {
   font-size: 3.2em;
   line-height: 1.1;
+}
+
+/* Responsive headings */
+@media (max-width: 768px) {
+  h1 {
+    font-size: 2.5em;
+  }
+  
+  h2 {
+    font-size: 2em;
+  }
+  
+  h3 {
+    font-size: 1.5em;
+  }
+  
+  h4 {
+    font-size: 1.25em;
+  }
+  
+  h5 {
+    font-size: 1.1em;
+  }
+  
+  h6 {
+    font-size: 1em;
+  }
+}
+
+@media (max-width: 480px) {
+  h1 {
+    font-size: 2em;
+  }
+  
+  h2 {
+    font-size: 1.75em;
+  }
+  
+  h3 {
+    font-size: 1.5em;
+  }
+}
+
+/* Responsive paragraphs */
+p {
+  line-height: 1.6;
+  margin-bottom: 1em;
+}
+
+@media (max-width: 768px) {
+  p {
+    font-size: 16px;
+    line-height: 1.5;
+  }
+}
+
+@media (max-width: 480px) {
+  p {
+    font-size: 14px;
+    line-height: 1.4;
+  }
+}
+
+/* Responsive spacing */
+@media (max-width: 768px) {
+  * {
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+  }
+  
+  * + * {
+    margin-top: 0.5em;
+  }
+}
+
+@media (max-width: 480px) {
+  * {
+    margin-top: 0.25em;
+    margin-bottom: 0.25em;
+  }
+  
+  * + * {
+    margin-top: 0.25em;
+  }
+}
+
+/* Responsive containers */
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 0 15px;
+  }
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding: 0 10px;
+  }
+}
+
+/* Responsive utilities */
+.hidden-mobile {
+  display: block;
+}
+
+.visible-mobile {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .hidden-mobile {
+    display: none;
+  }
+  
+  .visible-mobile {
+    display: block;
+  }
+}
+
+/* Better mobile text alignment */
+@media (max-width: 768px) {
+  .text-center-mobile {
+    text-align: center;
+  }
+  
+  .text-left-mobile {
+    text-align: left;
+  }
+  
+  .text-right-mobile {
+    text-align: right;
+  }
 }
 
 button {
@@ -45,6 +187,9 @@ button {
   background-color: #1a1a1a;
   cursor: pointer;
   transition: border-color 0.25s;
+  /* Ensure minimum touch target size for mobile */
+  min-height: 44px;
+  min-width: 44px;
 }
 button:hover {
   border-color: #646cff;
@@ -64,5 +209,159 @@ button:focus-visible {
   }
   button {
     background-color: #f9f9f9;
+  }
+}
+
+/* Mobile-specific improvements */
+@media (max-width: 768px) {
+  /* Prevent zoom on input focus */
+  input, select, textarea {
+    font-size: 16px;
+  }
+  
+  /* Improve touch targets */
+  button, a {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Prevent horizontal scroll */
+  body {
+    overflow-x: hidden;
+  }
+}
+
+/* Prevent text selection on buttons for better mobile UX */
+button {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Better focus styles for accessibility */
+button:focus,
+input:focus,
+select:focus,
+textarea:focus,
+a:focus {
+  outline: 2px solid #667eea;
+  outline-offset: 2px;
+}
+
+/* Better accessibility for screen readers */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Better contrast for mobile */
+@media (max-width: 768px) {
+  * {
+    color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}
+
+/* Responsive images */
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Better mobile image handling */
+@media (max-width: 768px) {
+  img {
+    width: 100%;
+    height: auto;
+  }
+}
+
+/* Responsive tables */
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+@media (max-width: 768px) {
+  table {
+    font-size: 14px;
+  }
+  
+  th, td {
+    padding: 8px 4px;
+  }
+}
+
+/* Responsive lists */
+ul, ol {
+  padding-left: 20px;
+}
+
+@media (max-width: 768px) {
+  ul, ol {
+    padding-left: 16px;
+  }
+  
+  li {
+    margin-bottom: 4px;
+  }
+}
+
+/* Improve touch feedback */
+@media (hover: none) and (pointer: coarse) {
+  button:active,
+  a:active {
+    transform: scale(0.98);
+  }
+  
+  /* Better touch scrolling */
+  * {
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Prevent text selection on touch */
+  * {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+  
+  /* Allow text selection on inputs and textareas */
+  input, textarea {
+    -webkit-user-select: text;
+    -khtml-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
+  }
+}
+
+/* Performance optimizations for mobile */
+@media (max-width: 768px) {
+  /* Reduce animations on mobile for better performance */
+  * {
+    animation-duration: 0.2s !important;
+    transition-duration: 0.2s !important;
+  }
+  
+  /* Optimize for mobile rendering */
+  * {
+    -webkit-transform: translateZ(0);
+    -moz-transform: translateZ(0);
+    -ms-transform: translateZ(0);
+    -o-transform: translateZ(0);
+    transform: translateZ(0);
   }
 }

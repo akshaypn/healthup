@@ -11,12 +11,51 @@ interface WeightEntry {
 
 interface FoodEntry {
   id: number;
-  name: string;
-  calories: number;
-  protein: number;
-  fat: number;
-  carbs: number;
+  description: string;
+  calories: number | null;
+  protein_g: number | null;
+  fat_g: number | null;
+  carbs_g: number | null;
+  fiber_g: number | null;
+  sugar_g: number | null;
+  sodium_mg: number | null;
+  serving_size: string | null;
+  meal_type: string | null;
+  confidence_score: number | null;
+  source: string | null;
   logged_at: string;
+  // Vitamins
+  vitamin_a_mcg?: number | null;
+  vitamin_c_mg?: number | null;
+  vitamin_d_mcg?: number | null;
+  vitamin_e_mg?: number | null;
+  vitamin_k_mcg?: number | null;
+  vitamin_b1_mg?: number | null;
+  vitamin_b2_mg?: number | null;
+  vitamin_b3_mg?: number | null;
+  vitamin_b5_mg?: number | null;
+  vitamin_b6_mg?: number | null;
+  vitamin_b7_mcg?: number | null;
+  vitamin_b9_mcg?: number | null;
+  vitamin_b12_mcg?: number | null;
+  // Minerals
+  calcium_mg?: number | null;
+  iron_mg?: number | null;
+  magnesium_mg?: number | null;
+  phosphorus_mg?: number | null;
+  potassium_mg?: number | null;
+  zinc_mg?: number | null;
+  copper_mg?: number | null;
+  manganese_mg?: number | null;
+  selenium_mcg?: number | null;
+  chromium_mcg?: number | null;
+  molybdenum_mcg?: number | null;
+  // Other nutrients
+  cholesterol_mg?: number | null;
+  saturated_fat_g?: number | null;
+  trans_fat_g?: number | null;
+  polyunsaturated_fat_g?: number | null;
+  monounsaturated_fat_g?: number | null;
 }
 
 interface HREntry {
@@ -79,7 +118,7 @@ const Dashboard: React.FC = () => {
     const today = new Date().toDateString();
     return dashboardData.recent_food
       .filter(food => new Date(food.logged_at).toDateString() === today)
-      .reduce((sum, food) => sum + food.calories, 0);
+      .reduce((sum, food) => sum + (food.calories || 0), 0);
   };
 
   const getTodayProtein = () => {
@@ -87,7 +126,7 @@ const Dashboard: React.FC = () => {
     const today = new Date().toDateString();
     return dashboardData.recent_food
       .filter(food => new Date(food.logged_at).toDateString() === today)
-      .reduce((sum, food) => sum + food.protein, 0);
+      .reduce((sum, food) => sum + (food.protein_g || 0), 0);
   };
 
   const getLatestHeartRate = () => {

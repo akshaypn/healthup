@@ -103,17 +103,7 @@ interface AgentStep {
 }
 
 const FoodLog: React.FC = () => {
-  const [formData, setFormData] = useState({
-    description: '',
-    calories: '',
-    protein_g: '',
-    fat_g: '',
-    carbs_g: '',
-    fiber_g: '',
-    sugar_g: '',
-    serving_size: '',
-    meal_type: ''
-  });
+
   
   const [aiInput, setAiInput] = useState('');
   const [foodHistory, setFoodHistory] = useState<FoodEntry[]>([]);
@@ -271,55 +261,7 @@ const FoodLog: React.FC = () => {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setMessage('');
 
-    try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/food`, {
-        method: 'POST',
-        credentials: 'include', // Include cookies in the request
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          description: formData.description,
-          calories: parseInt(formData.calories) || null,
-          protein_g: parseFloat(formData.protein_g) || null,
-          fat_g: parseFloat(formData.fat_g) || null,
-          carbs_g: parseFloat(formData.carbs_g) || null,
-          fiber_g: parseFloat(formData.fiber_g) || null,
-          sugar_g: parseFloat(formData.sugar_g) || null,
-          serving_size: formData.serving_size || null,
-          meal_type: formData.meal_type || null
-        })
-      });
-
-      if (response.ok) {
-        setMessage('Food logged successfully!');
-        setFormData({
-          description: '',
-          calories: '',
-          protein_g: '',
-          fat_g: '',
-          carbs_g: '',
-          fiber_g: '',
-          sugar_g: '',
-          serving_size: '',
-          meal_type: ''
-        });
-        fetchFoodHistory();
-      } else {
-        const errorData = await response.json();
-        setMessage(`Failed to log food: ${errorData.detail || 'Unknown error'}`);
-      }
-    } catch (error) {
-      setMessage('Failed to log food. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleAiParse = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -525,12 +467,7 @@ const FoodLog: React.FC = () => {
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
-  };
+
 
   const todayEntries = (foodHistory || []).filter(entry => 
     new Date(entry.logged_at).toDateString() === new Date().toDateString()
@@ -868,127 +805,7 @@ const FoodLog: React.FC = () => {
           )}
         </div>
 
-        {/* Manual Food Input */}
-        <div className="food-manual-card">
-          <h2>✏️ Manual Entry</h2>
-          <p>Or enter food details manually</p>
-          <form onSubmit={handleSubmit} className="manual-form">
-            <div className="form-row">
-              <div className="form-group">
-                <label htmlFor="description">Food Description</label>
-                <input
-                  type="text"
-                  id="description"
-                  name="description"
-                  value={formData.description}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor="serving_size">Serving Size</label>
-                <input
-                  type="text"
-                  id="serving_size"
-                  name="serving_size"
-                  value={formData.serving_size}
-                  onChange={handleInputChange}
-                  placeholder="e.g., 100g"
-                />
-              </div>
-            </div>
-            
-            <div className="form-row">
-              <div className="form-group">
-                <label htmlFor="calories">Calories</label>
-                <input
-                  type="number"
-                  id="calories"
-                  name="calories"
-                  value={formData.calories}
-                  onChange={handleInputChange}
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor="protein_g">Protein (g)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  id="protein_g"
-                  name="protein_g"
-                  value={formData.protein_g}
-                  onChange={handleInputChange}
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor="fat_g">Fat (g)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  id="fat_g"
-                  name="fat_g"
-                  value={formData.fat_g}
-                  onChange={handleInputChange}
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor="carbs_g">Carbs (g)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  id="carbs_g"
-                  name="carbs_g"
-                  value={formData.carbs_g}
-                  onChange={handleInputChange}
-                />
-              </div>
-            </div>
 
-            <div className="form-row">
-              <div className="form-group">
-                <label htmlFor="fiber_g">Fiber (g)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  id="fiber_g"
-                  name="fiber_g"
-                  value={formData.fiber_g}
-                  onChange={handleInputChange}
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor="sugar_g">Sugar (g)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  id="sugar_g"
-                  name="sugar_g"
-                  value={formData.sugar_g}
-                  onChange={handleInputChange}
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor="meal_type">Meal Type</label>
-                <select
-                  id="meal_type"
-                  name="meal_type"
-                  value={formData.meal_type}
-                  onChange={handleInputChange}
-                >
-                  <option value="">Select meal type</option>
-                  <option value="Breakfast">Breakfast</option>
-                  <option value="Lunch">Lunch</option>
-                  <option value="Dinner">Dinner</option>
-                  <option value="Snack">Snack</option>
-                </select>
-              </div>
-            </div>
-
-            <button type="submit" disabled={loading} className="manual-submit-btn">
-              {loading ? 'Saving...' : 'Save Food Entry'}
-            </button>
-          </form>
-        </div>
       </div>
 
       {/* Today's Summary */}
@@ -1163,28 +980,159 @@ const FoodLog: React.FC = () => {
                     <div className="detailed-view">
                       <h5>Detailed Nutrition</h5>
                       <div className="nutrition-details">
-                        <div className="nutrition-row">
-                          <span>Fiber:</span>
-                          <span>{entry.fiber_g || 0}g</span>
-                        </div>
-                        <div className="nutrition-row">
-                          <span>Sugar:</span>
-                          <span>{entry.sugar_g || 0}g</span>
-                        </div>
-                        <div className="nutrition-row">
-                          <span>Serving Size:</span>
-                          <span>{entry.serving_size || 'Not specified'}</span>
-                        </div>
-                        <div className="nutrition-row">
-                          <span>Source:</span>
-                          <span>{entry.source || 'Manual entry'}</span>
-                        </div>
-                        {entry.confidence_score && (
+                        {/* Basic Info */}
+                        <div className="nutrition-section">
+                          <h6>Basic Information</h6>
                           <div className="nutrition-row">
-                            <span>AI Confidence:</span>
-                            <span>{Math.round(entry.confidence_score * 100)}%</span>
+                            <span>Serving Size:</span>
+                            <span>{entry.serving_size || 'Not specified'}</span>
                           </div>
-                        )}
+                          <div className="nutrition-row">
+                            <span>Source:</span>
+                            <span>{entry.source || 'Manual entry'}</span>
+                          </div>
+                          {entry.confidence_score && (
+                            <div className="nutrition-row">
+                              <span>AI Confidence:</span>
+                              <span>{Math.round(entry.confidence_score * 100)}%</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Additional Macronutrients */}
+                        <div className="nutrition-section">
+                          <h6>Additional Macronutrients</h6>
+                          <div className="nutrition-row">
+                            <span>Fiber:</span>
+                            <span>{entry.fiber_g || 0}g</span>
+                          </div>
+                          <div className="nutrition-row">
+                            <span>Sugar:</span>
+                            <span>{entry.sugar_g || 0}g</span>
+                          </div>
+                          <div className="nutrition-row">
+                            <span>Saturated Fat:</span>
+                            <span>{entry.saturated_fat_g || 0}g</span>
+                          </div>
+                          <div className="nutrition-row">
+                            <span>Trans Fat:</span>
+                            <span>{entry.trans_fat_g || 0}g</span>
+                          </div>
+                          <div className="nutrition-row">
+                            <span>Cholesterol:</span>
+                            <span>{entry.cholesterol_mg || 0}mg</span>
+                          </div>
+                        </div>
+
+                        {/* Vitamins */}
+                        <div className="nutrition-section">
+                          <h6>Vitamins</h6>
+                          <div className="nutrition-row">
+                            <span>Vitamin A:</span>
+                            <span>{entry.vitamin_a_mcg || 0}μg</span>
+                          </div>
+                          <div className="nutrition-row">
+                            <span>Vitamin C:</span>
+                            <span>{entry.vitamin_c_mg || 0}mg</span>
+                          </div>
+                          <div className="nutrition-row">
+                            <span>Vitamin D:</span>
+                            <span>{entry.vitamin_d_mcg || 0}μg</span>
+                          </div>
+                          <div className="nutrition-row">
+                            <span>Vitamin E:</span>
+                            <span>{entry.vitamin_e_mg || 0}mg</span>
+                          </div>
+                          <div className="nutrition-row">
+                            <span>Vitamin K:</span>
+                            <span>{entry.vitamin_k_mcg || 0}μg</span>
+                          </div>
+                          <div className="nutrition-row">
+                            <span>Vitamin B1 (Thiamine):</span>
+                            <span>{entry.vitamin_b1_mg || 0}mg</span>
+                          </div>
+                          <div className="nutrition-row">
+                            <span>Vitamin B2 (Riboflavin):</span>
+                            <span>{entry.vitamin_b2_mg || 0}mg</span>
+                          </div>
+                          <div className="nutrition-row">
+                            <span>Vitamin B3 (Niacin):</span>
+                            <span>{entry.vitamin_b3_mg || 0}mg</span>
+                          </div>
+                          <div className="nutrition-row">
+                            <span>Vitamin B5 (Pantothenic Acid):</span>
+                            <span>{entry.vitamin_b5_mg || 0}mg</span>
+                          </div>
+                          <div className="nutrition-row">
+                            <span>Vitamin B6:</span>
+                            <span>{entry.vitamin_b6_mg || 0}mg</span>
+                          </div>
+                          <div className="nutrition-row">
+                            <span>Vitamin B7 (Biotin):</span>
+                            <span>{entry.vitamin_b7_mcg || 0}μg</span>
+                          </div>
+                          <div className="nutrition-row">
+                            <span>Vitamin B9 (Folate):</span>
+                            <span>{entry.vitamin_b9_mcg || 0}μg</span>
+                          </div>
+                          <div className="nutrition-row">
+                            <span>Vitamin B12:</span>
+                            <span>{entry.vitamin_b12_mcg || 0}μg</span>
+                          </div>
+                        </div>
+
+                        {/* Minerals */}
+                        <div className="nutrition-section">
+                          <h6>Minerals</h6>
+                          <div className="nutrition-row">
+                            <span>Calcium:</span>
+                            <span>{entry.calcium_mg || 0}mg</span>
+                          </div>
+                          <div className="nutrition-row">
+                            <span>Iron:</span>
+                            <span>{entry.iron_mg || 0}mg</span>
+                          </div>
+                          <div className="nutrition-row">
+                            <span>Magnesium:</span>
+                            <span>{entry.magnesium_mg || 0}mg</span>
+                          </div>
+                          <div className="nutrition-row">
+                            <span>Phosphorus:</span>
+                            <span>{entry.phosphorus_mg || 0}mg</span>
+                          </div>
+                          <div className="nutrition-row">
+                            <span>Potassium:</span>
+                            <span>{entry.potassium_mg || 0}mg</span>
+                          </div>
+                          <div className="nutrition-row">
+                            <span>Sodium:</span>
+                            <span>{entry.sodium_mg || 0}mg</span>
+                          </div>
+                          <div className="nutrition-row">
+                            <span>Zinc:</span>
+                            <span>{entry.zinc_mg || 0}mg</span>
+                          </div>
+                          <div className="nutrition-row">
+                            <span>Copper:</span>
+                            <span>{entry.copper_mg || 0}mg</span>
+                          </div>
+                          <div className="nutrition-row">
+                            <span>Manganese:</span>
+                            <span>{entry.manganese_mg || 0}mg</span>
+                          </div>
+                          <div className="nutrition-row">
+                            <span>Selenium:</span>
+                            <span>{entry.selenium_mcg || 0}μg</span>
+                          </div>
+                          <div className="nutrition-row">
+                            <span>Chromium:</span>
+                            <span>{entry.chromium_mcg || 0}μg</span>
+                          </div>
+                          <div className="nutrition-row">
+                            <span>Molybdenum:</span>
+                            <span>{entry.molybdenum_mcg || 0}μg</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   )}
