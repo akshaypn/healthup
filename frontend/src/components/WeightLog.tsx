@@ -20,10 +20,10 @@ const WeightLog: React.FC = () => {
 
   const fetchWeightHistory = async () => {
     try {
-      const token = localStorage.getItem('access_token');
       const response = await fetch(`${import.meta.env.VITE_API_URL}/weight/history`, {
+        credentials: 'include', // Include cookies in the request
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json',
         }
       });
       
@@ -50,12 +50,11 @@ const WeightLog: React.FC = () => {
     setMessage('');
 
     try {
-      const token = localStorage.getItem('access_token');
       const response = await fetch(`${import.meta.env.VITE_API_URL}/weight`, {
         method: 'POST',
+        credentials: 'include', // Include cookies in the request
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ kg: parseFloat(weight) })
       });

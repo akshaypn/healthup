@@ -19,6 +19,7 @@ class User(Base):
     hr_sessions = relationship('HRSession', back_populates='user', cascade="all, delete-orphan")
     ai_insights = relationship('AIInsight', back_populates='user', cascade="all, delete-orphan")
     food_parsing_sessions = relationship('FoodParsingSession', back_populates='user', cascade="all, delete-orphan")
+    food_log_analyses = relationship('FoodLogAnalysis', back_populates='user', cascade="all, delete-orphan")
 
 class WeightLog(Base):
     __tablename__ = 'weight_logs'
@@ -128,4 +129,28 @@ class AIInsight(Base):
     
     __table_args__ = (
         UniqueConstraint('user_id', 'period', 'period_start', name='uq_user_period_start'),
+    )
+
+class FoodLogAnalysis(Base):
+    __tablename__ = 'food_log_analyses'
+    id = Column(BigInteger, primary_key=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'))
+    food_log_id = Column(BigInteger, ForeignKey('food_logs.id', ondelete='CASCADE'))
+    health_score = Column(Numeric(5,2))  # 0-100 health score (increased precision)
+    protein_adequacy = Column(String)  # low, adequate, high
+    fiber_content = Column(String)  # low, adequate, high
+    vitamin_balance = Column(String)  # poor, fair, good, excellent
+    mineral_balance = Column(String)  # poor, fair, good, excellent
+    recommendations = Column(JSON)  # Array of recommendation strings
+    analysis_text = Column(Text)  # Detailed analysis text
+    model_used = Column(String)  # Which AI model was used
+    confidence_score = Column(Numeric(3,2))  # AI confidence in analysis
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    user = relationship('User', back_populates='food_log_analyses')
+    food_log = relationship('FoodLog')
+    
+    __table_args__ = (
+        UniqueConstraint('user_id', 'food_log_id', name='uq_user_food_log_analysis'),
     )

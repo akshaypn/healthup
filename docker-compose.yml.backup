@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_DB: healthup
       POSTGRES_USER: healthup
-      POSTGRES_PASSWORD: healthup_secure_password_a2032334186a8000
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-healthup123}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -37,15 +37,13 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     environment:
-      - DATABASE_URL=postgresql://healthup:healthup_secure_password_a2032334186a8000@postgres:5432/healthup
+      - DATABASE_URL=postgresql://healthup:${POSTGRES_PASSWORD:-healthup123}@postgres:5432/healthup
       - REDIS_URL=redis://redis:6379
       - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-this-in-production}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - COOKIE_SECURE=${COOKIE_SECURE:-false}
-      - COOKIE_DOMAIN=${COOKIE_DOMAIN:-}
-      - COOKIE_SAMESITE=${COOKIE_SAMESITE:-lax}
-      - FRONTEND_ORIGINS=${FRONTEND_ORIGINS:-http://100.123.199.100:3000}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://100.123.199.100:3000}
     ports:
       - "8000:8000"
     depends_on:
@@ -64,7 +62,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     environment:
-      - DATABASE_URL=postgresql://healthup:healthup_secure_password_a2032334186a8000@postgres:5432/healthup
+      - DATABASE_URL=postgresql://healthup:${POSTGRES_PASSWORD:-healthup123}@postgres:5432/healthup
       - REDIS_URL=redis://redis:6379
       - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-this-in-production}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
@@ -85,7 +83,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     environment:
-      - DATABASE_URL=postgresql://healthup:healthup_secure_password_a2032334186a8000@postgres:5432/healthup
+      - DATABASE_URL=postgresql://healthup:${POSTGRES_PASSWORD:-healthup123}@postgres:5432/healthup
       - REDIS_URL=redis://redis:6379
       - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-this-in-production}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
@@ -108,7 +106,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - VITE_API_URL=${VITE_API_URL:-http://100.123.199.100:8000}
+      - VITE_API_URL=${API_URL:-http://100.123.199.100:8000}
       - VITE_GEMINI_API_KEY=${GEMINI_API_KEY}
     depends_on:
       - backend

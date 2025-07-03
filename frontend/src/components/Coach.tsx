@@ -19,10 +19,10 @@ const Coach: React.FC = () => {
 
   const fetchTodayAdvice = async () => {
     try {
-      const token = localStorage.getItem('access_token');
       const response = await fetch(`${import.meta.env.VITE_API_URL}/coach/today`, {
+        credentials: 'include', // Include cookies in the request
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json',
         }
       });
       

@@ -8,24 +8,42 @@ import os
 from dotenv import load_dotenv
 from . import models, database, schemas, crud, deps, worker
 from .auth import router as auth_router
-from .food_parser import FoodParserService, FallbackFoodParser
+from .food_parser import FoodParserService
 from .mcp_server import get_mcp_client
 
 load_dotenv()
 
 app = FastAPI(title="HealthUp API", version="1.0.0")
 
-# For development with Tailscale, allow all origins
-# In production, you should specify exact origins
-origins = os.getenv("CORS_ORIGINS", "*").split(",")
+# Configure CORS
+# When credentials (cookies) are included in requests, the Access-Control-Allow-Origin header must
+#    be the exact origin (not the wildcard "*").  To support both localhost development and
+#    dynamic Tailscale IPs we allow any http/https origin on port 3000 using a regex.  Starlette's
+#    CORSMiddleware will echo back the requesting origin when the regex matches, satisfying the
+#    browser's security requirements while still letting cookies flow.
+#
+#    If you need to further restrict the allowed origins, set the environment variable
+#    FRONTEND_ORIGINS (comma-separated) or FRONTEND_ORIGIN_REGEX.
+#
+frontend_origins = os.getenv("FRONTEND_ORIGINS")
+frontend_origin_regex = os.getenv("FRONTEND_ORIGIN_REGEX")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+if frontend_origins:
+    origins_list = [o.strip() for o in frontend_origins.split(",") if o.strip()]
+    cors_kwargs = {"allow_origins": origins_list}
+else:
+    # Default regex matches http://localhost:3000, http://127.0.0.1:3000 and any 100.x.x.x tailscale IPs on port 3000
+    default_regex = frontend_origin_regex or r"https?://(?:localhost|127\.0\.0\.1|100(?:\.\d{1,3}){3})(?::\d+)?"
+    cors_kwargs = {"allow_origin_regex": default_regex}
+
+cors_kwargs.update({
+    "allow_credentials": True,
+    "allow_methods": ["*"],
+    "allow_headers": ["*"],
+})
+
+app.add_middleware(CORSMiddleware, **cors_kwargs)
+
 # MCP Server configuration
 mcp_config = schemas.MCPServerConfig(
     api_key=os.getenv("OPENAI_API_KEY"),
@@ -205,7 +223,13 @@ def get_ai_insight(
     
     insight = crud.get_ai_insight(db, user.id, period, period_start)
     if not insight:
-        raise HTTPException(status_code=404, detail="Insight not found")
+        # Return a placeholder response instead of 404
+        return {
+            "period": period,
+            "period_start": period_start.isoformat(),
+            "insight_md": f"# {period.capitalize()} Insights\n\nYour AI coach is analyzing your {period} data. Keep logging your health metrics to receive personalized insights!\n\n## What to expect:\n- Personalized health recommendations\n- Trend analysis and patterns\n- Actionable next steps\n- Motivational guidance",
+            "created_at": datetime.utcnow().isoformat()
+        }
     return insight
 
 @app.get("/coach/today")
@@ -289,3 +313,120 @@ async def test_food_parse(request: schemas.FoodParsingRequest):
         return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to parse food input: {str(e)}")
+
+# Food Log Analysis endpoints
+@app.post("/food/{food_id}/analyze")
+async def analyze_food_log(
+    food_id: int,
+    user=Depends(deps.get_current_user),
+    db=Depends(deps.get_db)
+):
+    """Analyze a specific food log using AI"""
+    try:
+        # Get the food log
+        food_log = db.query(models.FoodLog).filter(
+            models.FoodLog.id == food_id,
+            models.FoodLog.user_id == user.id
+        ).first()
+        
+        if not food_log:
+            raise HTTPException(status_code=404, detail="Food log not found")
+        
+        # Check if analysis already exists
+        existing_analysis = crud.get_food_log_analysis(db, food_id, user.id)
+        if existing_analysis:
+            return existing_analysis
+        
+        # Create analysis using OpenAI agent
+        from .food_parser import FoodParserService
+        from . import schemas as food_schemas
+        
+        # Create a single food item for analysis
+        nutrition_data = {
+            "calories_kcal": food_log.calories or 0,
+            "protein_g": food_log.protein_g or 0,
+            "fat_g": food_log.fat_g or 0,
+            "carbs_g": food_log.carbs_g or 0,
+            "fiber_g": food_log.fiber_g or 0,
+            "sugar_g": food_log.sugar_g or 0,
+            "sodium_mg": food_log.sodium_mg or 0
+        }
+        
+        # Create a Nutrients object for analysis
+        from .food_parser import Nutrients
+        nutrition_item = Nutrients(
+            dish=food_log.description,
+            calories_kcal=nutrition_data["calories_kcal"],
+            protein_g=nutrition_data["protein_g"],
+            fat_g=nutrition_data["fat_g"],
+            carbs_g=nutrition_data["carbs_g"],
+            fiber_g=nutrition_data["fiber_g"],
+            sugar_g=nutrition_data["sugar_g"],
+            sodium_mg=nutrition_data["sodium_mg"]
+        )
+        
+        # Generate analysis using the food parser service
+        mcp_config = food_schemas.MCPServerConfig(
+            api_key=os.getenv("OPENAI_API_KEY"),
+            timeout=int(os.getenv("MCP_TIMEOUT", "30"))
+        )
+        
+        food_parser = FoodParserService(mcp_config)
+        meal_analysis = await food_parser._generate_meal_analysis_with_agent([nutrition_item])
+        
+        if meal_analysis:
+            # Create analysis record
+            analysis_data = food_schemas.FoodLogAnalysisCreate(
+                food_log_id=food_id,
+                health_score=meal_analysis.overall_health_score,
+                protein_adequacy=meal_analysis.protein_adequacy,
+                fiber_content=meal_analysis.fiber_content,
+                vitamin_balance=meal_analysis.vitamin_balance,
+                mineral_balance=meal_analysis.mineral_balance,
+                recommendations=meal_analysis.recommendations,
+                analysis_text=f"AI analysis for {food_log.description}",
+                model_used="OpenAI Agent",
+                confidence_score=0.9
+            )
+            
+            analysis = crud.create_food_log_analysis(db, user.id, analysis_data)
+            return analysis
+        else:
+            raise HTTPException(status_code=500, detail="Failed to generate analysis")
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to analyze food log: {str(e)}")
+
+@app.get("/food/{food_id}/analysis")
+def get_food_log_analysis(
+    food_id: int,
+    user=Depends(deps.get_current_user),
+    db=Depends(deps.get_db)
+):
+    """Get analysis for a specific food log"""
+    analysis = crud.get_food_log_analysis(db, food_id, user.id)
+    if not analysis:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+    return analysis
+
+@app.get("/food/history/with-analysis")
+def get_food_history_with_analysis(
+    limit: int = 10,
+    user=Depends(deps.get_current_user),
+    db=Depends(deps.get_db)
+):
+    """Get food history with analysis"""
+    food_logs_with_analysis = crud.get_food_logs_with_analysis(db, user.id, limit)
+    return {"logs": food_logs_with_analysis}
+
+@app.get("/food/{food_id}/with-analysis")
+def get_food_log_with_analysis(
+    food_id: int,
+    user=Depends(deps.get_current_user),
+    db=Depends(deps.get_db)
+):
+    """Get a food log with its analysis"""
+    result = crud.get_food_log_with_analysis(db, food_id, user.id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Food log not found")
+    return result

@@ -1,9 +1,10 @@
 import os
 import json
+import logging
 from datetime import datetime, timedelta, date
 from typing import Dict, Any, Optional
 from celery import Celery
-from agents import Agent, Runner, trace
+from openai import OpenAI
 from sqlalchemy.orm import Session
 from . import models, database, crud
 from .database import get_db
@@ -15,22 +16,23 @@ celery_app = Celery(
     backend=os.getenv("REDIS_URL", "redis://localhost:6379")
 )
 
-# Google Gemini API key will be used in client initialization
+# Initialize OpenAI client
+client = OpenAI()
 
 class TokenBucket:
-    """Rate limiting for Gemini API calls"""
+    """Rate limiting for OpenAI API calls"""
     def __init__(self):
         self.redis_client = celery_app.backend.client
         
     def can_make_request(self, model: str, project: str = "default") -> bool:
-        key = f"gemini_rate_limit:{project}:{model}"
+        key = f"openai_rate_limit:{project}:{model}"
         next_allowed = self.redis_client.get(key)
         if next_allowed is None:
             return True
         return datetime.now().timestamp() > float(next_allowed)
     
     def set_next_allowed(self, model: str, delay_seconds: int, project: str = "default"):
-        key = f"gemini_rate_limit:{project}:{model}"
+        key = f"openai_rate_limit:{project}:{model}"
         next_time = datetime.now().timestamp() + delay_seconds
         self.redis_client.setex(key, delay_seconds + 10, next_time)
 
@@ -111,30 +113,36 @@ def build_monthly_prompt(user_data: Dict[str, Any]) -> str:
     """
     return prompt
 
-async def call_openai_agent(prompt: str, agent_name: str = "Health Coach") -> str:
-    """Call OpenAI agent for health coaching"""
+def call_openai_with_grounding(prompt: str, agent_name: str = "Health Coach") -> str:
+    """Call OpenAI with web search grounding for health coaching"""
     try:
         # Check if OpenAI API key is available
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             raise Exception("OPENAI_API_KEY not found")
         
-        # Create agent
-        agent = Agent(
-            name=agent_name,
-            instructions="""You are a knowledgeable health and nutrition coach. 
+        # Check rate limiting
+        if not token_bucket.can_make_request("gpt-4o", "health_coaching"):
+            raise Exception("Rate limit exceeded")
+        
+        # Create response with web search grounding
+        response = client.responses.create(
+            model="gpt-4o",
+            tools=[{"type": "web_search_preview"}],
+            input=f"""You are a knowledgeable health and nutrition coach named {agent_name}. 
             Provide helpful, accurate, and motivating advice based on the user's health data. 
-            Be encouraging but realistic in your recommendations.""",
+            Be encouraging but realistic in your recommendations.
+            
+            User request: {prompt}"""
         )
         
-        # Run agent
-        with trace(f"{agent_name} Execution"):
-            result = await Runner.run(agent, prompt)
+        # Set rate limit
+        token_bucket.set_next_allowed("gpt-4o", 1, "health_coaching")
         
-        return result.final_output if result.final_output else "No response generated"
+        return response.output_text if response.output_text else "No response generated"
         
     except Exception as e:
-        logging.error(f"Error calling OpenAI agent: {str(e)}")
+        logging.error(f"Error calling OpenAI with grounding: {str(e)}")
         return f"Error generating response: {str(e)}"
 
 def get_user_data_for_period(db: Session, user_id: str, period: str, period_start: date) -> Dict[str, Any]:
@@ -198,29 +206,18 @@ def get_user_data_for_period(db: Session, user_id: str, period: str, period_star
     }
 
 @celery_app.task
-async def generate_daily_insight(user_id: str, target_date: str):
+def generate_daily_insight(user_id: str, target_date: str):
     """Generate daily insight for a user"""
     db = next(get_db())
     try:
         target_date_obj = datetime.strptime(target_date, "%Y-%m-%d").date()
-        
-        # Check if insight already exists
         existing = crud.get_ai_insight(db, user_id, "daily", target_date_obj)
         if existing:
             return {"status": "already_exists"}
-        
-        # Get user data
         user_data = get_user_data_for_period(db, user_id, "daily", target_date_obj)
-        
-        # Build prompt
         prompt = build_daily_prompt(user_data)
-        
-        # Call OpenAI agent
-        insight_md = await call_openai_agent(prompt, "Daily Health Coach")
-        
-        # Save insight
+        insight_md = call_openai_with_grounding(prompt, "Daily Health Coach")
         crud.create_ai_insight(db, user_id, "daily", target_date_obj, insight_md)
-        
         return {"status": "success", "insight": insight_md}
     except Exception as e:
         return {"status": "error", "message": str(e)}
@@ -228,29 +225,18 @@ async def generate_daily_insight(user_id: str, target_date: str):
         db.close()
 
 @celery_app.task
-async def generate_weekly_insight(user_id: str, week_start: str):
+def generate_weekly_insight(user_id: str, week_start: str):
     """Generate weekly insight for a user"""
     db = next(get_db())
     try:
         week_start_obj = datetime.strptime(week_start, "%Y-%m-%d").date()
-        
-        # Check if insight already exists
         existing = crud.get_ai_insight(db, user_id, "weekly", week_start_obj)
         if existing:
             return {"status": "already_exists"}
-        
-        # Get user data
         user_data = get_user_data_for_period(db, user_id, "weekly", week_start_obj)
-        
-        # Build prompt
         prompt = build_weekly_prompt(user_data)
-        
-        # Call OpenAI agent with Pro model for better reasoning
-        insight_md = await call_openai_agent(prompt, "Weekly Health Coach")
-        
-        # Save insight
+        insight_md = call_openai_with_grounding(prompt, "Weekly Health Coach")
         crud.create_ai_insight(db, user_id, "weekly", week_start_obj, insight_md)
-        
         return {"status": "success", "insight": insight_md}
     except Exception as e:
         return {"status": "error", "message": str(e)}
@@ -258,29 +244,18 @@ async def generate_weekly_insight(user_id: str, week_start: str):
         db.close()
 
 @celery_app.task
-async def generate_monthly_insight(user_id: str, month_start: str):
+def generate_monthly_insight(user_id: str, month_start: str):
     """Generate monthly insight for a user"""
     db = next(get_db())
     try:
         month_start_obj = datetime.strptime(month_start, "%Y-%m-%d").date()
-        
-        # Check if insight already exists
         existing = crud.get_ai_insight(db, user_id, "monthly", month_start_obj)
         if existing:
             return {"status": "already_exists"}
-        
-        # Get user data
         user_data = get_user_data_for_period(db, user_id, "monthly", month_start_obj)
-        
-        # Build prompt
         prompt = build_monthly_prompt(user_data)
-        
-        # Call OpenAI agent with Pro model for better reasoning
-        insight_md = await call_openai_agent(prompt, "Monthly Health Coach")
-        
-        # Save insight
+        insight_md = call_openai_with_grounding(prompt, "Monthly Health Coach")
         crud.create_ai_insight(db, user_id, "monthly", month_start_obj, insight_md)
-        
         return {"status": "success", "insight": insight_md}
     except Exception as e:
         return {"status": "error", "message": str(e)}
@@ -288,28 +263,22 @@ async def generate_monthly_insight(user_id: str, month_start: str):
         db.close()
 
 @celery_app.task
-async def generate_realtime_coach(user_id: str) -> str:
+def generate_realtime_coach(user_id: str) -> str:
     """Generate real-time coaching advice"""
     db = next(get_db())
     try:
-        # Get today's data
         today = date.today()
         user_data = get_user_data_for_period(db, user_id, "daily", today)
-        
-        # Build quick prompt for real-time advice
         prompt = f"""
         You are a real-time health coach. Based on today's data so far, provide 2-3 quick, actionable tips.
-        
         Today's data:
         - Weight: {user_data.get('weight', 'No data')} kg
         - Calories so far: {user_data.get('avg_calories', 0)} kcal
         - Protein: {user_data.get('avg_protein', 0)}g
         - HR sessions: {len(user_data.get('hr_sessions', []))}
-        
         Provide 2-3 specific, actionable tips for the rest of the day. Keep it under 100 words.
         """
-        
-        return await call_openai_agent(prompt, "Real-time Health Coach")
+        return call_openai_with_grounding(prompt, "Real-time Health Coach")
     except Exception as e:
         return f"Unable to generate coaching advice: {str(e)}"
     finally:

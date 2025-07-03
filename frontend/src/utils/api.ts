@@ -6,30 +6,17 @@ interface ApiResponse<T = any> {
 }
 
 class ApiClient {
-  private getAuthHeaders(): Record<string, string> {
-    const token = localStorage.getItem('access_token');
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  }
-
   private async refreshTokenIfNeeded(): Promise<boolean> {
     try {
-      const refreshToken = localStorage.getItem('refresh_token');
-      if (!refreshToken) {
-        return false;
-      }
-
       const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
         method: 'POST',
+        credentials: 'include', // Include cookies in the request
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${refreshToken}`,
         }
       });
 
       if (response.ok) {
-        const data = await response.json();
-        localStorage.setItem('access_token', data.access_token);
-        localStorage.setItem('refresh_token', data.refresh_token);
         return true;
       }
       return false;
@@ -45,9 +32,9 @@ class ApiClient {
   ): Promise<ApiResponse<T>> {
     const config: RequestInit = {
       ...options,
+      credentials: 'include', // Include cookies in all requests
       headers: {
         'Content-Type': 'application/json',
-        ...this.getAuthHeaders(),
         ...options.headers,
       },
     };
@@ -59,17 +46,9 @@ class ApiClient {
       if (response.status === 401) {
         const refreshed = await this.refreshTokenIfNeeded();
         if (refreshed) {
-          // Update headers with new token
-          config.headers = {
-            'Content-Type': 'application/json',
-            ...this.getAuthHeaders(),
-            ...options.headers,
-          };
           response = await fetch(`${API_BASE_URL}${endpoint}`, config);
         } else {
           // Refresh failed, redirect to login
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
           window.location.href = '/login';
           return { error: 'Authentication required' };
         }

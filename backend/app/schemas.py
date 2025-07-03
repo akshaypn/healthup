@@ -171,6 +171,43 @@ class FoodLogResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class FoodLogAnalysisCreate(BaseModel):
+    food_log_id: int
+    health_score: Optional[float] = None
+    protein_adequacy: Optional[str] = None
+    fiber_content: Optional[str] = None
+    vitamin_balance: Optional[str] = None
+    mineral_balance: Optional[str] = None
+    recommendations: Optional[List[str]] = None
+    analysis_text: Optional[str] = None
+    model_used: Optional[str] = None
+    confidence_score: Optional[float] = None
+
+class FoodLogAnalysisResponse(BaseModel):
+    id: int
+    food_log_id: int
+    health_score: Optional[float] = None
+    protein_adequacy: Optional[str] = None
+    fiber_content: Optional[str] = None
+    vitamin_balance: Optional[str] = None
+    mineral_balance: Optional[str] = None
+    recommendations: Optional[List[str]] = None
+    analysis_text: Optional[str] = None
+    model_used: Optional[str] = None
+    confidence_score: Optional[float] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class FoodLogWithAnalysisResponse(BaseModel):
+    food_log: FoodLogResponse
+    analysis: Optional[FoodLogAnalysisResponse] = None
+
+    class Config:
+        from_attributes = True
+
 class FoodHistoryResponse(BaseModel):
     logs: List[FoodLogResponse]
 
@@ -212,7 +249,7 @@ class FoodParsingSessionResponse(BaseModel):
 
 # MCP Server Schemas
 class MCPServerConfig(BaseModel):
-    api_key: str
+    api_key: Optional[str] = None
     timeout: int = 30
 
 class HRSessionCreate(BaseModel):

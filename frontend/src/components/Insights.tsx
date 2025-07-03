@@ -19,15 +19,15 @@ const Insights: React.FC = () => {
 
   const fetchInsights = async () => {
     try {
-      const token = localStorage.getItem('access_token');
       const periods = ['daily', 'weekly', 'monthly'];
       
       const insightsData: { [key: string]: Insight } = {};
       
       for (const period of periods) {
         const response = await fetch(`${import.meta.env.VITE_API_URL}/insight/${period}`, {
+          credentials: 'include', // Include cookies in the request
           headers: {
-            'Authorization': `Bearer ${token}`
+            'Content-Type': 'application/json',
           }
         });
         

@@ -40,23 +40,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const getAuthHeaders = () => {
-    const token = localStorage.getItem('access_token');
-    return token ? { Authorization: `Bearer ${token}` } : undefined;
+    // For cookie-based auth, we don't need to manually set Authorization header
+    // The browser will automatically send cookies with requests
+    return undefined;
   };
 
   const checkAuthStatus = async () => {
     try {
-      const token = localStorage.getItem('access_token');
-      if (!token) {
-        setUser(null);
-        setLoading(false);
-        return;
-      }
-
       const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/me`, {
+        credentials: 'include', // Include cookies in the request
         headers: {
           'Content-Type': 'application/json',
-          ...getAuthHeaders(),
         }
       });
       
@@ -65,17 +59,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setUser(userData);
       } else if (response.status === 401) {
         // Try to refresh the token
-        await refreshAccessToken();
+        const refreshed = await refreshAccessToken();
+        if (!refreshed) {
+          setUser(null);
+        }
       } else {
         setUser(null);
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
       }
     } catch (error) {
       console.error('Auth status check failed:', error);
       setUser(null);
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
     } finally {
       setLoading(false);
     }
@@ -83,35 +76,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const refreshAccessToken = async () => {
     try {
-      const refreshToken = localStorage.getItem('refresh_token');
-      if (!refreshToken) {
-        setUser(null);
-        return;
-      }
-
       const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/refresh`, {
         method: 'POST',
+        credentials: 'include', // Include cookies in the request
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${refreshToken}`,
         }
       });
 
       if (response.ok) {
         const data = await response.json();
-        localStorage.setItem('access_token', data.access_token);
-        localStorage.setItem('refresh_token', data.refresh_token);
         setUser(data.user);
+        return true;
       } else {
         setUser(null);
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
+        return false;
       }
     } catch (error) {
       console.error('Token refresh failed:', error);
       setUser(null);
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
+      return false;
     }
   };
 
@@ -119,6 +103,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/login`, {
         method: 'POST',
+        credentials: 'include', // Include cookies in the request
         headers: {
           'Content-Type': 'application/json',
         },
@@ -131,8 +116,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       const data = await response.json();
-      localStorage.setItem('access_token', data.access_token);
-      localStorage.setItem('refresh_token', data.refresh_token);
       setUser(data.user);
     } catch (error) {
       console.error('Login error:', error);
@@ -144,6 +127,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/register`, {
         method: 'POST',
+        credentials: 'include', // Include cookies in the request
         headers: {
           'Content-Type': 'application/json',
         },
@@ -167,17 +151,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       await fetch(`${import.meta.env.VITE_API_URL}/auth/logout`, {
         method: 'POST',
+        credentials: 'include', // Include cookies in the request
         headers: {
           'Content-Type': 'application/json',
-          ...getAuthHeaders(),
         }
       });
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
       setUser(null);
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
     }
   };
 

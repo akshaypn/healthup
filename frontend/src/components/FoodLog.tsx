@@ -51,6 +51,27 @@ interface FoodEntry {
   monounsaturated_fat_g?: number | null;
 }
 
+interface FoodLogAnalysis {
+  id: number;
+  food_log_id: number;
+  health_score: number | null;
+  protein_adequacy: string | null;
+  fiber_content: string | null;
+  vitamin_balance: string | null;
+  mineral_balance: string | null;
+  recommendations: string[] | null;
+  analysis_text: string | null;
+  model_used: string | null;
+  confidence_score: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface FoodEntryWithAnalysis {
+  food_log: FoodEntry;
+  analysis: FoodLogAnalysis | null;
+}
+
 interface ParsedFoodItem {
   description: string;
   serving_size?: string;
@@ -96,6 +117,7 @@ const FoodLog: React.FC = () => {
   
   const [aiInput, setAiInput] = useState('');
   const [foodHistory, setFoodHistory] = useState<FoodEntry[]>([]);
+  const [foodHistoryWithAnalysis, setFoodHistoryWithAnalysis] = useState<FoodEntryWithAnalysis[]>([]);
   const [loading, setLoading] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -105,6 +127,7 @@ const FoodLog: React.FC = () => {
   const [editingFood, setEditingFood] = useState<FoodEntry | null>(null);
   const [showDetailedView, setShowDetailedView] = useState<number | null>(null);
   const [mealAnalysis, setMealAnalysis] = useState<any>(null);
+  const [analyzingFood, setAnalyzingFood] = useState<number | null>(null);
   
   // Agent progress tracking
   const [agentSteps, setAgentSteps] = useState<AgentStep[]>([
@@ -144,6 +167,7 @@ const FoodLog: React.FC = () => {
 
   useEffect(() => {
     fetchFoodHistory();
+    fetchFoodHistoryWithAnalysis();
   }, []);
 
   const resetAgentSteps = () => {
@@ -170,10 +194,10 @@ const FoodLog: React.FC = () => {
 
   const fetchFoodHistory = async () => {
     try {
-      const token = localStorage.getItem('access_token');
       const response = await fetch(`${import.meta.env.VITE_API_URL}/food/history`, {
+        credentials: 'include', // Include cookies in the request
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json',
         }
       });
       
@@ -188,18 +212,76 @@ const FoodLog: React.FC = () => {
     }
   };
 
+  const fetchFoodHistoryWithAnalysis = async () => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/food/history/with-analysis`, {
+        credentials: 'include', // Include cookies in the request
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const logsWithAnalysis = Array.isArray(data.logs) ? data.logs : [];
+        setFoodHistoryWithAnalysis(logsWithAnalysis);
+      }
+    } catch (error) {
+      console.error('Failed to fetch food history with analysis:', error);
+      setFoodHistoryWithAnalysis([]);
+    }
+  };
+
+  const analyzeFoodLog = async (foodId: number) => {
+    try {
+      setAnalyzingFood(foodId);
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/food/${foodId}/analyze`, {
+        method: 'POST',
+        credentials: 'include', // Include cookies in the request
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      if (response.ok) {
+        const analysis = await response.json();
+        // Update the food history with analysis
+        setFoodHistoryWithAnalysis(prev => 
+          prev.map(item => 
+            item.food_log.id === foodId 
+              ? { ...item, analysis } 
+              : item
+          )
+        );
+        setMessage('✅ Food log analyzed successfully!');
+      } else {
+        const errorData = await response.json();
+        setDetailedError(parseErrorResponse(errorData));
+      }
+    } catch (error) {
+      console.error('Failed to analyze food log:', error);
+      setDetailedError({
+        title: 'Analysis Failed',
+        message: 'Failed to analyze food log',
+        suggestions: ['Try again in a few moments', 'Check your internet connection'],
+        technical_details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    } finally {
+      setAnalyzingFood(null);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setMessage('');
 
     try {
-      const token = localStorage.getItem('access_token');
       const response = await fetch(`${import.meta.env.VITE_API_URL}/food`, {
         method: 'POST',
+        credentials: 'include', // Include cookies in the request
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           description: formData.description,
@@ -258,12 +340,11 @@ const FoodLog: React.FC = () => {
         details: 'Processing your input...' 
       });
       
-      const token = localStorage.getItem('access_token');
       const response = await fetch(`${import.meta.env.VITE_API_URL}/food/parse`, {
         method: 'POST',
+        credentials: 'include', // Include cookies in the request
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           user_input: aiInput,
@@ -352,11 +433,11 @@ const FoodLog: React.FC = () => {
     updateAgentStep('create-logs', { status: 'running', details: 'Saving to your food diary...' });
 
     try {
-      const token = localStorage.getItem('access_token');
       const response = await fetch(`${import.meta.env.VITE_API_URL}/food/parse/${currentSessionId}/create-logs`, {
         method: 'POST',
+        credentials: 'include', // Include cookies in the request
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json',
         }
       });
 
@@ -398,12 +479,11 @@ const FoodLog: React.FC = () => {
 
   const handleUpdateFood = async (foodId: number, updates: Partial<FoodEntry>) => {
     try {
-      const token = localStorage.getItem('access_token');
       const response = await fetch(`${import.meta.env.VITE_API_URL}/food/${foodId}`, {
         method: 'PUT',
+        credentials: 'include', // Include cookies in the request
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(updates)
       });
@@ -425,11 +505,11 @@ const FoodLog: React.FC = () => {
     if (!confirm('Are you sure you want to delete this food log?')) return;
 
     try {
-      const token = localStorage.getItem('access_token');
       const response = await fetch(`${import.meta.env.VITE_API_URL}/food/${foodId}`, {
         method: 'DELETE',
+        credentials: 'include', // Include cookies in the request
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json',
         }
       });
 
@@ -977,120 +1057,180 @@ const FoodLog: React.FC = () => {
       {/* Food History */}
       <div className="food-history">
         <h2>📝 Recent Food Entries</h2>
-        {foodHistory.length === 0 ? (
+        {foodHistoryWithAnalysis.length === 0 ? (
           <div className="empty-state">
             <p>No food entries yet. Start by logging your first meal!</p>
           </div>
         ) : (
           <div className="history-list">
-            {foodHistory.slice(0, 10).map((entry) => (
-              <div key={entry.id} className="history-item">
-                <div className="history-header">
-                  <h4>{entry.description}</h4>
-                  <div className="history-actions">
-                    <button
-                      onClick={() => setShowDetailedView(showDetailedView === entry.id ? null : entry.id)}
-                      className="detail-btn"
-                    >
-                      {showDetailedView === entry.id ? 'Hide' : 'Details'}
-                    </button>
-                    <button
-                      onClick={() => setEditingFood(editingFood?.id === entry.id ? null : entry)}
-                      className="edit-btn"
-                    >
-                      {editingFood?.id === entry.id ? 'Cancel' : 'Edit'}
-                    </button>
-                    <button
-                      onClick={() => handleDeleteFood(entry.id)}
-                      className="delete-btn"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="history-summary">
-                  <span className="calories">{entry.calories || 0} kcal</span>
-                  <span className="protein">{entry.protein_g || 0}g protein</span>
-                  <span className="carbs">{entry.carbs_g || 0}g carbs</span>
-                  <span className="fat">{entry.fat_g || 0}g fat</span>
-                  {entry.meal_type && <span className="meal-type">{entry.meal_type}</span>}
-                  <span className="date">
-                    {new Date(entry.logged_at).toLocaleDateString()}
-                  </span>
-                </div>
-
-                {showDetailedView === entry.id && (
-                  <div className="detailed-view">
-                    <h5>Detailed Nutrition</h5>
-                    <div className="nutrition-details">
-                      <div className="nutrition-row">
-                        <span>Fiber:</span>
-                        <span>{entry.fiber_g || 0}g</span>
-                      </div>
-                      <div className="nutrition-row">
-                        <span>Sugar:</span>
-                        <span>{entry.sugar_g || 0}g</span>
-                      </div>
-                      <div className="nutrition-row">
-                        <span>Serving Size:</span>
-                        <span>{entry.serving_size || 'Not specified'}</span>
-                      </div>
-                      <div className="nutrition-row">
-                        <span>Source:</span>
-                        <span>{entry.source || 'Manual entry'}</span>
-                      </div>
-                      {entry.confidence_score && (
-                        <div className="nutrition-row">
-                          <span>AI Confidence:</span>
-                          <span>{Math.round(entry.confidence_score * 100)}%</span>
-                        </div>
+            {foodHistoryWithAnalysis.slice(0, 10).map((item) => {
+              const entry = item.food_log;
+              const analysis = item.analysis;
+              
+              return (
+                <div key={entry.id} className="history-item">
+                  <div className="history-header">
+                    <h4>{entry.description}</h4>
+                    <div className="history-actions">
+                      <button
+                        onClick={() => setShowDetailedView(showDetailedView === entry.id ? null : entry.id)}
+                        className="detail-btn"
+                      >
+                        {showDetailedView === entry.id ? 'Hide' : 'Details'}
+                      </button>
+                      {!analysis && (
+                        <button
+                          onClick={() => analyzeFoodLog(entry.id)}
+                          disabled={analyzingFood === entry.id}
+                          className="analyze-btn"
+                        >
+                          {analyzingFood === entry.id ? '🤖 Analyzing...' : '🔍 Analyze'}
+                        </button>
                       )}
+                      <button
+                        onClick={() => setEditingFood(editingFood?.id === entry.id ? null : entry)}
+                        className="edit-btn"
+                      >
+                        {editingFood?.id === entry.id ? 'Cancel' : 'Edit'}
+                      </button>
+                      <button
+                        onClick={() => handleDeleteFood(entry.id)}
+                        className="delete-btn"
+                      >
+                        Delete
+                      </button>
                     </div>
                   </div>
-                )}
+                  
+                  <div className="history-summary">
+                    <span className="calories">{entry.calories || 0} kcal</span>
+                    <span className="protein">{entry.protein_g || 0}g protein</span>
+                    <span className="carbs">{entry.carbs_g || 0}g carbs</span>
+                    <span className="fat">{entry.fat_g || 0}g fat</span>
+                    {entry.meal_type && <span className="meal-type">{entry.meal_type}</span>}
+                    <span className="date">
+                      {new Date(entry.logged_at).toLocaleDateString()}
+                    </span>
+                  </div>
 
-                {editingFood?.id === entry.id && (
-                  <div className="edit-form">
-                    <div className="edit-row">
-                      <input
-                        type="text"
-                        value={editingFood.description}
-                        onChange={(e) => setEditingFood({...editingFood, description: e.target.value})}
-                        placeholder="Description"
-                      />
-                      <input
-                        type="number"
-                        value={editingFood.calories || ''}
-                        onChange={(e) => setEditingFood({...editingFood, calories: parseInt(e.target.value) || null})}
-                        placeholder="Calories"
-                      />
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={editingFood.protein_g || ''}
-                        onChange={(e) => setEditingFood({...editingFood, protein_g: parseFloat(e.target.value) || null})}
-                        placeholder="Protein (g)"
-                      />
+                  {/* Analysis Display */}
+                  {analysis && (
+                    <div className="analysis-section">
+                      <h5>🤖 AI Analysis</h5>
+                      <div className="analysis-content">
+                        <div className="analysis-score">
+                          <span className="score-label">Health Score:</span>
+                          <span className="score-value">{analysis.health_score || 0}/100</span>
+                        </div>
+                        <div className="analysis-details">
+                          <div className="analysis-item">
+                            <span className="label">Protein:</span>
+                            <span className="value">{analysis.protein_adequacy || 'Not analyzed'}</span>
+                          </div>
+                          <div className="analysis-item">
+                            <span className="label">Fiber:</span>
+                            <span className="value">{analysis.fiber_content || 'Not analyzed'}</span>
+                          </div>
+                          <div className="analysis-item">
+                            <span className="label">Vitamins:</span>
+                            <span className="value">{analysis.vitamin_balance || 'Not analyzed'}</span>
+                          </div>
+                          <div className="analysis-item">
+                            <span className="label">Minerals:</span>
+                            <span className="value">{analysis.mineral_balance || 'Not analyzed'}</span>
+                          </div>
+                        </div>
+                        {analysis.recommendations && analysis.recommendations.length > 0 && (
+                          <div className="recommendations">
+                            <h6>💡 Recommendations:</h6>
+                            <ul>
+                              {analysis.recommendations.map((rec, index) => (
+                                <li key={index}>{rec}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {analysis.analysis_text && (
+                          <div className="analysis-text">
+                            <p>{analysis.analysis_text}</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="edit-actions">
-                      <button
-                        onClick={() => handleUpdateFood(entry.id, editingFood)}
-                        className="save-btn"
-                      >
-                        Save
-                      </button>
-                      <button
-                        onClick={() => setEditingFood(null)}
-                        className="cancel-btn"
-                      >
-                        Cancel
-                      </button>
+                  )}
+
+                  {showDetailedView === entry.id && (
+                    <div className="detailed-view">
+                      <h5>Detailed Nutrition</h5>
+                      <div className="nutrition-details">
+                        <div className="nutrition-row">
+                          <span>Fiber:</span>
+                          <span>{entry.fiber_g || 0}g</span>
+                        </div>
+                        <div className="nutrition-row">
+                          <span>Sugar:</span>
+                          <span>{entry.sugar_g || 0}g</span>
+                        </div>
+                        <div className="nutrition-row">
+                          <span>Serving Size:</span>
+                          <span>{entry.serving_size || 'Not specified'}</span>
+                        </div>
+                        <div className="nutrition-row">
+                          <span>Source:</span>
+                          <span>{entry.source || 'Manual entry'}</span>
+                        </div>
+                        {entry.confidence_score && (
+                          <div className="nutrition-row">
+                            <span>AI Confidence:</span>
+                            <span>{Math.round(entry.confidence_score * 100)}%</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            ))}
+                  )}
+
+                  {editingFood?.id === entry.id && (
+                    <div className="edit-form">
+                      <div className="edit-row">
+                        <input
+                          type="text"
+                          value={editingFood.description}
+                          onChange={(e) => setEditingFood({...editingFood, description: e.target.value})}
+                          placeholder="Description"
+                        />
+                        <input
+                          type="number"
+                          value={editingFood.calories || ''}
+                          onChange={(e) => setEditingFood({...editingFood, calories: parseInt(e.target.value) || null})}
+                          placeholder="Calories"
+                        />
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={editingFood.protein_g || ''}
+                          onChange={(e) => setEditingFood({...editingFood, protein_g: parseFloat(e.target.value) || null})}
+                          placeholder="Protein (g)"
+                        />
+                      </div>
+                      <div className="edit-actions">
+                        <button
+                          onClick={() => handleUpdateFood(entry.id, editingFood)}
+                          className="save-btn"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => setEditingFood(null)}
+                          className="cancel-btn"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

@@ -56,7 +56,7 @@ rm -f test_cookies.txt
 
 # Test 1: Health Check
 log_info "Test 1: Health Check"
-if curl -s "$API_URL/health" | grep -q "ok"; then
+if curl -s "$API_URL/health" | grep -q "healthy"; then
     log_success "Health check passed"
 else
     log_error "Health check failed"

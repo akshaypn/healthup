@@ -13,9 +13,16 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "2016
 REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "30"))  # 30 days
 
 # Cookie settings for production
-COOKIE_SECURE = os.getenv("COOKIE_SECURE", "true").lower() == "true"  # Set to true in production
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"  # Set to true in production
 COOKIE_DOMAIN = os.getenv("COOKIE_DOMAIN", None)  # Set your domain in production
-COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax")  # lax, strict, or none
+if COOKIE_DOMAIN == "":
+    COOKIE_DOMAIN = None  # Empty string means no domain restriction
+COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax").lower()
+
+# Browsers require SameSite=None cookies to be Secure. If we're running over plain HTTP
+# (COOKIE_SECURE == False) we must NOT use SameSite=None or the cookie will be rejected.
+if not COOKIE_SECURE and COOKIE_SAMESITE == "none":
+    COOKIE_SAMESITE = "lax"  # fallback that works in dev over http
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 router = APIRouter()
@@ -64,7 +71,7 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str):
         httponly=True,
         secure=COOKIE_SECURE,
         samesite=COOKIE_SAMESITE,
-        domain=COOKIE_DOMAIN,
+        domain=None,  # Don't set domain to allow cross-port cookies
         path="/"
     )
     
@@ -76,14 +83,14 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str):
         httponly=True,
         secure=COOKIE_SECURE,
         samesite=COOKIE_SAMESITE,
-        domain=COOKIE_DOMAIN,
+        domain=None,  # Don't set domain to allow cross-port cookies
         path="/"
     )
 
 def clear_auth_cookies(response: Response):
     """Clear authentication cookies"""
-    response.delete_cookie("access_token", path="/", domain=COOKIE_DOMAIN)
-    response.delete_cookie("refresh_token", path="/", domain=COOKIE_DOMAIN)
+    response.delete_cookie("access_token", path="/", domain=None)
+    response.delete_cookie("refresh_token", path="/", domain=None)
 
 @router.post("/auth/register", status_code=201)
 def register(user: schemas.UserCreate, db: Session = Depends(get_db)):

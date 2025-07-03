@@ -232,3 +232,81 @@ def get_recent_ai_insights(db: Session, user_id, limit: int = 10):
     return db.query(models.AIInsight).filter(
         models.AIInsight.user_id == user_id
     ).order_by(models.AIInsight.created_at.desc()).limit(limit).all()
+
+# Food Log Analysis CRUD functions
+def create_food_log_analysis(db: Session, user_id: str, analysis: schemas.FoodLogAnalysisCreate):
+    """Create a food log analysis"""
+    db_analysis = models.FoodLogAnalysis(
+        user_id=user_id,
+        food_log_id=analysis.food_log_id,
+        health_score=analysis.health_score,
+        protein_adequacy=analysis.protein_adequacy,
+        fiber_content=analysis.fiber_content,
+        vitamin_balance=analysis.vitamin_balance,
+        mineral_balance=analysis.mineral_balance,
+        recommendations=analysis.recommendations,
+        analysis_text=analysis.analysis_text,
+        model_used=analysis.model_used,
+        confidence_score=analysis.confidence_score
+    )
+    db.add(db_analysis)
+    db.commit()
+    db.refresh(db_analysis)
+    return db_analysis
+
+def get_food_log_analysis(db: Session, food_log_id: int, user_id: str):
+    """Get analysis for a specific food log"""
+    return db.query(models.FoodLogAnalysis).filter(
+        models.FoodLogAnalysis.food_log_id == food_log_id,
+        models.FoodLogAnalysis.user_id == user_id
+    ).first()
+
+def update_food_log_analysis(db: Session, analysis_id: int, user_id: str, updates: dict):
+    """Update a food log analysis"""
+    db_analysis = db.query(models.FoodLogAnalysis).filter(
+        models.FoodLogAnalysis.id == analysis_id,
+        models.FoodLogAnalysis.user_id == user_id
+    ).first()
+    
+    if not db_analysis:
+        return None
+    
+    # Update only provided fields
+    for field, value in updates.items():
+        if hasattr(db_analysis, field):
+            setattr(db_analysis, field, value)
+    
+    db.commit()
+    db.refresh(db_analysis)
+    return db_analysis
+
+def get_food_log_with_analysis(db: Session, food_log_id: int, user_id: str):
+    """Get a food log with its analysis"""
+    food_log = db.query(models.FoodLog).filter(
+        models.FoodLog.id == food_log_id,
+        models.FoodLog.user_id == user_id
+    ).first()
+    
+    if not food_log:
+        return None
+    
+    analysis = get_food_log_analysis(db, food_log_id, user_id)
+    
+    return {
+        'food_log': food_log,
+        'analysis': analysis
+    }
+
+def get_food_logs_with_analysis(db: Session, user_id: str, limit: int = 10):
+    """Get food logs with their analyses"""
+    food_logs = get_recent_food_logs(db, user_id, limit)
+    
+    result = []
+    for food_log in food_logs:
+        analysis = get_food_log_analysis(db, food_log.id, user_id)
+        result.append({
+            'food_log': food_log,
+            'analysis': analysis
+        })
+    
+    return result

@@ -37,10 +37,10 @@ const HRLog: React.FC = () => {
 
   const fetchHRHistory = async () => {
     try {
-      const token = localStorage.getItem('access_token');
       const response = await fetch(`${import.meta.env.VITE_API_URL}/hr/history`, {
+        credentials: 'include', // Include cookies in the request
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json',
         }
       });
       
@@ -62,12 +62,11 @@ const HRLog: React.FC = () => {
     setMessage('');
 
     try {
-      const token = localStorage.getItem('access_token');
       const response = await fetch(`${import.meta.env.VITE_API_URL}/hr`, {
         method: 'POST',
+        credentials: 'include', // Include cookies in the request
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           avg_bpm: parseInt(formData.avg_bpm) || 0,
