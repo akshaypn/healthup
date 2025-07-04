@@ -19,6 +19,8 @@ const Navigation: React.FC = () => {
     { path: '/', label: 'Dashboard', icon: '📊' },
     { path: '/weight', label: 'Weight', icon: '⚖️' },
     { path: '/food', label: 'Food', icon: '🍽️' },
+    { path: '/food-bank', label: 'Food Bank', icon: '🏦' },
+    { path: '/profile', label: 'Profile', icon: '👤' },
     { path: '/hr', label: 'Heart Rate', icon: '❤️' },
     { path: '/insights', label: 'Insights', icon: '🧠' },
     { path: '/coach', label: 'Coach', icon: '💪' },

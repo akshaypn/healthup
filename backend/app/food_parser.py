@@ -127,7 +127,7 @@ class FoodParserService:
                 session_id=session.session_id,
                 status="completed",
                 parsed_foods=parsed_foods,
-                meal_analysis=meal_analysis,
+                meal_analysis=meal_analysis.dict() if meal_analysis else None,
                 extracted_datetime=extracted_datetime,
                 confidence_score=0.9,
                 meal_type=meal_type
@@ -302,16 +302,46 @@ class FoodParserService:
                 
             except Exception as e:
                 logger.error(f"Error getting nutrition for {dish}: {str(e)}")
-                # Fallback nutrition data
+                # Fallback nutrition data with more comprehensive values
                 nutrition = Nutrients(
                     dish=dish,
-                    calories_kcal=100,
-                    protein_g=2,
-                    fat_g=1,
-                    carbs_g=20,
-                    fiber_g=2,
-                    sugar_g=10,
-                    sodium_mg=5,
+                    calories_kcal=150,
+                    protein_g=5,
+                    fat_g=3,
+                    carbs_g=25,
+                    fiber_g=3,
+                    sugar_g=8,
+                    sodium_mg=50,
+                    # Add some basic vitamin and mineral values
+                    vitamin_a_mcg=50,
+                    vitamin_c_mg=10,
+                    vitamin_d_mcg=1,
+                    vitamin_e_mg=2,
+                    vitamin_k_mcg=10,
+                    vitamin_b1_mg=0.1,
+                    vitamin_b2_mg=0.1,
+                    vitamin_b3_mg=2,
+                    vitamin_b5_mg=0.5,
+                    vitamin_b6_mg=0.1,
+                    vitamin_b7_mcg=5,
+                    vitamin_b9_mcg=20,
+                    vitamin_b12_mcg=0.5,
+                    calcium_mg=50,
+                    iron_mg=1,
+                    magnesium_mg=25,
+                    phosphorus_mg=50,
+                    potassium_mg=200,
+                    zinc_mg=0.5,
+                    copper_mg=0.1,
+                    manganese_mg=0.5,
+                    selenium_mcg=5,
+                    chromium_mcg=1,
+                    molybdenum_mcg=1,
+                    cholesterol_mg=10,
+                    saturated_fat_g=1,
+                    trans_fat_g=0,
+                    polyunsaturated_fat_g=1,
+                    monounsaturated_fat_g=1,
                 )
                 nutrition_items.append(nutrition)
         
@@ -341,33 +371,45 @@ class FoodParserService:
         
         {nutrition_summary}
 
-        Return a JSON object with this structure:
+        Return ONLY a JSON object with this exact structure:
         {{
-          "overall_health_score": float (0-100),
-          "protein_adequacy": "string description",
-          "fiber_content": "string description", 
-          "vitamin_balance": "string description",
-          "mineral_balance": "string description",
-          "recommendations": ["recommendation1", "recommendation2", ...]
+          "overall_health_score": 75.0,
+          "protein_adequacy": "Adequate protein content",
+          "fiber_content": "Good fiber content", 
+          "vitamin_balance": "Good vitamin balance",
+          "mineral_balance": "Good mineral balance",
+          "recommendations": ["Consider adding more vegetables", "Stay hydrated"]
         }}
+        
+        Do not include any other text, only the JSON object.
         """
         
         try:
             response = self.openai_client.chat.completions.create(
                 model="gpt-4",
                 messages=[
-                    {"role": "system", "content": "You are a nutrition expert. Analyze meals and provide health insights."},
+                    {"role": "system", "content": "You are a nutrition expert. Analyze meals and provide health insights. Always return valid JSON."},
                     {"role": "user", "content": prompt}
                 ],
                 max_tokens=500,
-                temperature=0.3
+                temperature=0.1
             )
             
             response_text = response.choices[0].message.content.strip()
+            
+            # Clean up the response
             if response_text.startswith('```json'):
                 response_text = response_text[7:-3]
             elif response_text.startswith('```'):
                 response_text = response_text[3:-3]
+            
+            # Remove any leading/trailing whitespace
+            response_text = response_text.strip()
+            
+            # Check if response is empty or invalid
+            if not response_text:
+                logger.warning("Empty response from AI for meal analysis")
+                return self._generate_fallback_meal_analysis(nutrition_data)
             
             data = json.loads(response_text)
             return MealAnalysis(
@@ -380,7 +422,51 @@ class FoodParserService:
             )
         except Exception as e:
             logger.warning(f"Failed to parse meal analysis: {e}")
-            return None
+            return self._generate_fallback_meal_analysis(nutrition_data)
+    
+    def _generate_fallback_meal_analysis(self, nutrition_data: List[Nutrients]) -> MealAnalysis:
+        """Generate fallback meal analysis when AI fails"""
+        total_calories = sum(item.calories_kcal for item in nutrition_data)
+        total_protein = sum(item.protein_g for item in nutrition_data)
+        total_fat = sum(item.fat_g for item in nutrition_data)
+        total_carbs = sum(item.carbs_g for item in nutrition_data)
+        total_fiber = sum(item.fiber_g or 0 for item in nutrition_data)
+        
+        # Calculate basic health score
+        health_score = 70.0
+        if total_protein >= 20:
+            health_score += 10
+        if total_fiber >= 5:
+            health_score += 10
+        if total_calories >= 300 and total_calories <= 800:
+            health_score += 10
+        
+        # Determine adequacy levels
+        protein_adequacy = "High" if total_protein >= 25 else "Adequate" if total_protein >= 15 else "Low"
+        fiber_content = "High" if total_fiber >= 8 else "Adequate" if total_fiber >= 5 else "Low"
+        
+        # Generate basic recommendations
+        recommendations = []
+        if total_protein < 20:
+            recommendations.append("Consider adding more protein-rich foods")
+        if total_fiber < 5:
+            recommendations.append("Add more fiber-rich foods like vegetables and whole grains")
+        if total_calories < 300:
+            recommendations.append("This seems like a light meal - consider adding more food")
+        if total_calories > 800:
+            recommendations.append("This is a large meal - consider portion control")
+        
+        if not recommendations:
+            recommendations = ["Good meal composition", "Stay hydrated", "Consider adding vegetables"]
+        
+        return MealAnalysis(
+            overall_health_score=health_score,
+            protein_adequacy=protein_adequacy,
+            fiber_content=fiber_content,
+            vitamin_balance="Good",
+            mineral_balance="Good",
+            recommendations=recommendations
+        )
     
     def _extract_datetime_from_text(self, text: str) -> Optional[datetime]:
         """Extract datetime from text"""

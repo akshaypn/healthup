@@ -20,6 +20,25 @@ class User(Base):
     ai_insights = relationship('AIInsight', back_populates='user', cascade="all, delete-orphan")
     food_parsing_sessions = relationship('FoodParsingSession', back_populates='user', cascade="all, delete-orphan")
     food_log_analyses = relationship('FoodLogAnalysis', back_populates='user', cascade="all, delete-orphan")
+    profile = relationship('UserProfile', back_populates='user', cascade="all, delete-orphan", uselist=False)
+    amazfit_credentials = relationship('AmazfitCredentials', back_populates='user', cascade="all, delete-orphan", uselist=False)
+    activity_data = relationship('ActivityData', back_populates='user', cascade="all, delete-orphan")
+    steps_data = relationship('StepsData', back_populates='user', cascade="all, delete-orphan")
+
+class UserProfile(Base):
+    __tablename__ = 'user_profiles'
+    id = Column(BigInteger, primary_key=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), unique=True)
+    gender = Column(String)  # male, female, other
+    height_cm = Column(Numeric(5,2))  # height in centimeters
+    weight_kg = Column(Numeric(5,2))  # weight in kilograms
+    age = Column(Integer)
+    activity_level = Column(String)  # sedentary, lightly_active, moderately_active, very_active, extremely_active
+    goal = Column(String)  # lose_weight, maintain_weight, gain_weight
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    user = relationship('User', back_populates='profile')
 
 class WeightLog(Base):
     __tablename__ = 'weight_logs'
@@ -153,4 +172,65 @@ class FoodLogAnalysis(Base):
     
     __table_args__ = (
         UniqueConstraint('user_id', 'food_log_id', name='uq_user_food_log_analysis'),
+    )
+
+class AmazfitCredentials(Base):
+    __tablename__ = 'amazfit_credentials'
+    id = Column(BigInteger, primary_key=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), unique=True)
+    app_token = Column(Text, nullable=False)
+    user_id_amazfit = Column(String)  # Amazfit user ID
+    email = Column(String)  # Amazfit email (encrypted)
+    password = Column(String)  # Amazfit password (encrypted)
+    last_sync = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    user = relationship('User', back_populates='amazfit_credentials')
+
+class ActivityData(Base):
+    __tablename__ = 'activity_data'
+    id = Column(BigInteger, primary_key=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'))
+    date = Column(Date, nullable=False)
+    calories_burned = Column(Integer)
+    active_minutes = Column(Integer)
+    distance_km = Column(Numeric(6,2))
+    steps = Column(Integer)
+    sleep_hours = Column(Numeric(4,2))
+    deep_sleep_hours = Column(Numeric(4,2))
+    light_sleep_hours = Column(Numeric(4,2))
+    rem_sleep_hours = Column(Numeric(4,2))
+    awake_hours = Column(Numeric(4,2))
+    sleep_score = Column(Integer)
+    activity_score = Column(Integer)
+    raw_data = Column(JSON)  # Store raw API response
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    user = relationship('User', back_populates='activity_data')
+    
+    __table_args__ = (
+        UniqueConstraint('user_id', 'date', name='uq_user_activity_date'),
+    )
+
+class StepsData(Base):
+    __tablename__ = 'steps_data'
+    id = Column(BigInteger, primary_key=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'))
+    date = Column(Date, nullable=False)
+    total_steps = Column(Integer)
+    hourly_steps = Column(JSON)  # Array of hourly step counts
+    goal_steps = Column(Integer, default=10000)
+    calories_burned = Column(Integer)
+    distance_km = Column(Numeric(6,2))
+    active_minutes = Column(Integer)
+    raw_data = Column(JSON)  # Store raw API response
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    user = relationship('User', back_populates='steps_data')
+    
+    __table_args__ = (
+        UniqueConstraint('user_id', 'date', name='uq_user_steps_date'),
     )

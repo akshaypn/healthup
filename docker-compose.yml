@@ -46,6 +46,7 @@ services:
       - COOKIE_DOMAIN=${COOKIE_DOMAIN:-}
       - COOKIE_SAMESITE=${COOKIE_SAMESITE:-lax}
       - FRONTEND_ORIGINS=${FRONTEND_ORIGINS:-http://100.123.199.100:3000}
+      - AMAZFIT_ENCRYPTION_KEY=${AMAZFIT_ENCRYPTION_KEY:-U4J8mBaHpSdNc84WvQ4p53MnsgcMfRbpfgVey_VRnRY=}
     ports:
       - "8000:8000"
     depends_on:
@@ -69,6 +70,7 @@ services:
       - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-this-in-production}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - AMAZFIT_ENCRYPTION_KEY=${AMAZFIT_ENCRYPTION_KEY:-U4J8mBaHpSdNc84WvQ4p53MnsgcMfRbpfgVey_VRnRY=}
     depends_on:
       postgres:
         condition: service_healthy
@@ -90,6 +92,7 @@ services:
       - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-this-in-production}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - AMAZFIT_ENCRYPTION_KEY=${AMAZFIT_ENCRYPTION_KEY:-U4J8mBaHpSdNc84WvQ4p53MnsgcMfRbpfgVey_VRnRY=}
     depends_on:
       postgres:
         condition: service_healthy

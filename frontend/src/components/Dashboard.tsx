@@ -60,9 +60,9 @@ interface FoodEntry {
 
 interface HREntry {
   id: number;
-  avg_bpm: number;
-  min_bpm: number;
-  max_bpm: number;
+  avg_hr: number;
+  min_hr: number;
+  max_hr: number;
   started_at: string;
 }
 
@@ -183,7 +183,7 @@ const Dashboard: React.FC = () => {
             <div className="stat">
               <span className="stat-label">Heart Rate</span>
               <span className="stat-value">
-                {latestHR ? `${latestHR.avg_bpm} bpm` : '--'}
+                {latestHR ? `${latestHR.avg_hr} bpm` : '--'}
               </span>
             </div>
           </div>
@@ -252,9 +252,14 @@ const Dashboard: React.FC = () => {
           <h2>Recent Insights</h2>
           <div className="insights-preview">
             <p>Your AI coach is analyzing your data...</p>
-            <button className="view-insights-btn" onClick={() => navigate('/insights')}>
-              View Full Insights
-            </button>
+            <div className="insight-actions">
+              <button className="view-insights-btn" onClick={() => navigate('/insights')}>
+                View Full Insights
+              </button>
+              <button className="generate-quick-insight-btn" onClick={() => navigate('/insights')}>
+                🤖 Generate Daily Insight
+              </button>
+            </div>
           </div>
         </div>
       </div>

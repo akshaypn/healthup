@@ -3,13 +3,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import datetime, date, timedelta
-from typing import List
+from typing import List, Optional
 import os
 from dotenv import load_dotenv
 from . import models, database, schemas, crud, deps, worker
 from .auth import router as auth_router
 from .food_parser import FoodParserService
 from .mcp_server import get_mcp_client
+from cryptography.fernet import Fernet
 
 load_dotenv()
 
@@ -27,9 +28,13 @@ app = FastAPI(title="HealthUp API", version="1.0.0")
 #
 frontend_origins = os.getenv("FRONTEND_ORIGINS")
 frontend_origin_regex = os.getenv("FRONTEND_ORIGIN_REGEX")
+cors_origins = os.getenv("CORS_ORIGINS")  # Also check for CORS_ORIGINS
 
 if frontend_origins:
     origins_list = [o.strip() for o in frontend_origins.split(",") if o.strip()]
+    cors_kwargs = {"allow_origins": origins_list}
+elif cors_origins:
+    origins_list = [o.strip() for o in cors_origins.split(",") if o.strip()]
     cors_kwargs = {"allow_origins": origins_list}
 else:
     # Default regex matches http://localhost:3000, http://127.0.0.1:3000 and any 100.x.x.x tailscale IPs on port 3000
@@ -232,55 +237,141 @@ def get_ai_insight(
         }
     return insight
 
-@app.get("/coach/today")
-def get_todays_coaching(user=Depends(deps.get_current_user), db=Depends(deps.get_db)):
-    """Get real-time coaching advice for today"""
-    # Get today's data
-    todays_food = crud.get_todays_food_logs(db, user.id)
-    recent_weight = crud.get_recent_weight_logs(db, user.id, 1)
+@app.post("/insight/{period}/generate")
+def generate_insight(
+    period: str,
+    period_start: date = None,
+    user=Depends(deps.get_current_user),
+    db=Depends(deps.get_db)
+):
+    """Generate AI insight for a specific period on-demand"""
+    if period not in ['daily', 'weekly', 'monthly']:
+        raise HTTPException(status_code=400, detail="Invalid period. Must be daily, weekly, or monthly")
     
-    # Generate coaching advice
-    tips = []
-    message = "Here's your personalized health advice for today!"
+    if not period_start:
+        today = date.today()
+        if period == 'daily':
+            period_start = today
+        elif period == 'weekly':
+            period_start = today - timedelta(days=today.weekday())
+        elif period == 'monthly':
+            period_start = today.replace(day=1)
     
-    if not todays_food:
-        tips.append("You haven't logged any food today. Consider tracking your meals for better insights.")
-        message = "Let's start tracking your nutrition today!"
-    else:
-        tips.append(f"You've logged {len(todays_food)} meals today. Great job staying on track!")
+    # Check if insight already exists
+    existing_insight = crud.get_ai_insight(db, user.id, period, period_start)
+    if existing_insight:
+        return {
+            "message": f"{period.capitalize()} insight already exists for this period",
+            "insight": existing_insight,
+            "regenerated": False
+        }
+    
+    try:
+        # Import worker functions
+        from .worker import get_user_data_for_period, build_daily_prompt, build_weekly_prompt, build_monthly_prompt, call_openai_with_grounding
         
-        # Calculate total calories
-        total_calories = sum(food.calories or 0 for food in todays_food)
-        if total_calories > 0:
-            tips.append(f"Total calories today: {total_calories} kcal")
+        # Get comprehensive user data
+        user_data = get_user_data_for_period(db, user.id, period, period_start)
         
-        # Check protein intake
-        total_protein = sum(food.protein_g or 0 for food in todays_food)
-        if total_protein > 0:
-            tips.append(f"Protein intake: {total_protein:.1f}g")
-    
-    if recent_weight:
-        latest_weight = recent_weight[0]
-        tips.append(f"Your latest weight: {latest_weight.kg} kg")
+        # Build appropriate prompt
+        if period == 'daily':
+            prompt = build_daily_prompt(user_data)
+            agent_name = "Daily Health Coach"
+        elif period == 'weekly':
+            prompt = build_weekly_prompt(user_data)
+            agent_name = "Weekly Health Coach"
+        else:  # monthly
+            prompt = build_monthly_prompt(user_data)
+            agent_name = "Monthly Health Coach"
         
-        # Check if there's a trend
-        if len(recent_weight) > 1:
-            previous_weight = recent_weight[1].kg
-            change = latest_weight.kg - previous_weight
-            if abs(change) > 0.1:  # Significant change
-                if change > 0:
-                    tips.append("You've gained some weight. Consider reviewing your nutrition and exercise routine.")
-                else:
-                    tips.append("You've lost some weight. Keep up the great work!")
+        # Generate insight using OpenAI
+        insight_md = call_openai_with_grounding(prompt, agent_name)
+        
+        # Save to database
+        insight = crud.create_ai_insight(db, user.id, period, period_start, insight_md)
+        
+        return {
+            "message": f"{period.capitalize()} insight generated successfully",
+            "insight": insight,
+            "regenerated": True
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate insight: {str(e)}")
+
+@app.post("/insight/{period}/regenerate")
+def regenerate_insight(
+    period: str,
+    period_start: date = None,
+    user=Depends(deps.get_current_user),
+    db=Depends(deps.get_db)
+):
+    """Regenerate AI insight for a specific period (overwrites existing)"""
+    if period not in ['daily', 'weekly', 'monthly']:
+        raise HTTPException(status_code=400, detail="Invalid period. Must be daily, weekly, or monthly")
     
-    # Add general health tips
-    tips.append("Stay hydrated! Aim for 8 glasses of water daily.")
-    tips.append("Try to get at least 30 minutes of physical activity today.")
+    if not period_start:
+        today = date.today()
+        if period == 'daily':
+            period_start = today
+        elif period == 'weekly':
+            period_start = today - timedelta(days=today.weekday())
+        elif period == 'monthly':
+            period_start = today.replace(day=1)
     
-    return {
-        "tips": tips,
-        "message": message
-    }
+    try:
+        print(f"Starting insight regeneration for user {user.id}, period {period}, start {period_start}")
+        
+        # Import worker functions
+        from .worker import get_user_data_for_period, build_daily_prompt, build_weekly_prompt, build_monthly_prompt, call_openai_with_grounding
+        
+        # Get comprehensive user data
+        print("Getting user data for period...")
+        user_data = get_user_data_for_period(db, user.id, period, period_start)
+        print(f"User data retrieved: {len(user_data)} keys")
+        
+        # Build appropriate prompt
+        print("Building prompt...")
+        if period == 'daily':
+            prompt = build_daily_prompt(user_data)
+            agent_name = "Daily Health Coach"
+        elif period == 'weekly':
+            prompt = build_weekly_prompt(user_data)
+            agent_name = "Weekly Health Coach"
+        else:  # monthly
+            prompt = build_monthly_prompt(user_data)
+            agent_name = "Monthly Health Coach"
+        
+        print(f"Prompt built, length: {len(prompt)} characters")
+        
+        # Generate insight using OpenAI
+        print("Calling OpenAI...")
+        insight_md = call_openai_with_grounding(prompt, agent_name)
+        print(f"OpenAI response received, length: {len(insight_md)} characters")
+        
+        # Delete existing insight if it exists
+        existing_insight = crud.get_ai_insight(db, user.id, period, period_start)
+        if existing_insight:
+            print("Deleting existing insight...")
+            db.delete(existing_insight)
+            db.commit()
+        
+        # Save new insight to database
+        print("Saving new insight to database...")
+        insight = crud.create_ai_insight(db, user.id, period, period_start, insight_md)
+        print("Insight saved successfully")
+        
+        return {
+            "message": f"{period.capitalize()} insight regenerated successfully",
+            "insight": insight,
+            "regenerated": True
+        }
+        
+    except Exception as e:
+        print(f"Error in regenerate_insight: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to regenerate insight: {str(e)}")
 
 @app.post("/coach/chat")
 def chat_with_coach(message: dict, user=Depends(deps.get_current_user), background_tasks: BackgroundTasks=BackgroundTasks()):
@@ -299,15 +390,17 @@ def health_check():
 async def test_food_parse(request: schemas.FoodParsingRequest):
     """Test endpoint for food parsing without authentication"""
     try:
-        # Create a mock user ID for testing (valid UUID)
-        test_user_id = "ccde30d4-5b22-4b4c-a2eb-5d7dbd72000a"
-        
         # Get database session
         db = next(deps.get_db())
         
+        # Get the first user from the database
+        user = db.query(models.User).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="No users found in database")
+        
         response = await food_parser_service.parse_food_input(
             request.user_input,
-            test_user_id,
+            str(user.id),
             db
         )
         return response
@@ -430,3 +523,525 @@ def get_food_log_with_analysis(
     if not result:
         raise HTTPException(status_code=404, detail="Food log not found")
     return result
+
+# Amazfit Integration Endpoints
+@app.post("/amazfit/credentials", response_model=schemas.AmazfitCredentialsResponse)
+def create_amazfit_credentials(
+    credentials: schemas.AmazfitCredentialsCreate,
+    current_user=Depends(deps.get_current_user),
+    db=Depends(deps.get_db)
+):
+    """Create or update Amazfit credentials for the current user"""
+    try:
+        db_credentials = crud.create_amazfit_credentials(db, str(current_user.id), credentials)
+        return db_credentials
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to save credentials: {str(e)}")
+
+@app.get("/amazfit/credentials", response_model=schemas.AmazfitCredentialsResponse)
+def get_amazfit_credentials(
+    current_user=Depends(deps.get_current_user),
+    db=Depends(deps.get_db)
+):
+    """Get Amazfit credentials for the current user"""
+    credentials = crud.get_amazfit_credentials(db, str(current_user.id))
+    if not credentials:
+        raise HTTPException(status_code=404, detail="No Amazfit credentials found")
+    return credentials
+
+@app.delete("/amazfit/credentials")
+def delete_amazfit_credentials(
+    current_user=Depends(deps.get_current_user),
+    db=Depends(deps.get_db)
+):
+    """Delete Amazfit credentials for the current user"""
+    success = crud.delete_amazfit_credentials(db, str(current_user.id))
+    if not success:
+        raise HTTPException(status_code=404, detail="No Amazfit credentials found")
+    return {"message": "Credentials deleted successfully"}
+
+@app.post("/amazfit/sync", response_model=schemas.AmazfitSyncResponse)
+def sync_amazfit_data(
+    sync_request: schemas.AmazfitSyncRequest = schemas.AmazfitSyncRequest(),
+    current_user=Depends(deps.get_current_user),
+    db=Depends(deps.get_db)
+):
+    """Sync data from Amazfit"""
+    try:
+        from .amazfit_service import AmazfitDataSync
+        
+        sync_service = AmazfitDataSync(db, str(current_user.id))
+        results = sync_service.sync_all_data(sync_request.days_back)
+        
+        return schemas.AmazfitSyncResponse(
+            success=True,
+            message="Data synced successfully",
+            activity_synced=results['activity_synced'],
+            steps_synced=results['steps_synced'],
+            heart_rate_synced=results['heart_rate_synced'],
+            sleep_synced=results['sleep_synced']
+        )
+        
+    except Exception as e:
+        # Assuming logger is available, otherwise replace with print or similar
+        # logger.error(f"Failed to sync Amazfit data: {e}") 
+        print(f"Failed to sync Amazfit data: {e}") # Placeholder for logger
+        return schemas.AmazfitSyncResponse(
+            success=False,
+            message=f"Failed to sync data: {str(e)}",
+            errors=[str(e)]
+        )
+
+@app.get("/amazfit/activity", response_model=List[schemas.ActivityDataResponse])
+def get_activity_data(
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    limit: int = 7,
+    current_user=Depends(deps.get_current_user),
+    db=Depends(deps.get_db)
+):
+    """Get activity data for the current user"""
+    if start_date and end_date:
+        activity_data = crud.get_activity_data(db, str(current_user.id), start_date, end_date)
+    else:
+        activity_data = crud.get_recent_activity_data(db, str(current_user.id), limit)
+    
+    return activity_data
+
+@app.get("/amazfit/steps", response_model=List[schemas.StepsDataResponse])
+def get_steps_data(
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    limit: int = 7,
+    current_user=Depends(deps.get_current_user),
+    db=Depends(deps.get_db)
+):
+    """Get steps data for the current user"""
+    if start_date and end_date:
+        steps_data = crud.get_steps_data(db, str(current_user.id), start_date, end_date)
+    else:
+        steps_data = crud.get_recent_steps_data(db, str(current_user.id), limit)
+    
+    return steps_data
+
+@app.get("/amazfit/today")
+def get_today_summary(
+    current_user=Depends(deps.get_current_user),
+    db=Depends(deps.get_db)
+):
+    """Get today's activity summary for dashboard"""
+    summary = crud.get_today_activity_summary(db, str(current_user.id))
+    return summary
+
+# New endpoints for frontend integration
+@app.post("/amazfit/connect")
+def connect_amazfit_account(
+    credentials: schemas.AmazfitCredentialsCreate,
+    current_user=Depends(deps.get_current_user),
+    db=Depends(deps.get_db)
+):
+    """Connect Amazfit account using email/password"""
+    try:
+        # Get encryption key from environment
+        encryption_key = os.getenv("AMAZFIT_ENCRYPTION_KEY")
+        if not encryption_key:
+            # Generate a new key if not set
+            encryption_key = Fernet.generate_key().decode()
+            print(f"WARNING: Generated new encryption key. Set AMAZFIT_ENCRYPTION_KEY={encryption_key}")
+        
+        # Test the credentials by getting a token
+        from .amazfit_service import AmazfitService
+        service = AmazfitService.from_credentials(credentials.email, credentials.password)
+        
+        # Encrypt credentials
+        f = Fernet(encryption_key.encode())
+        encrypted_email = f.encrypt(credentials.email.encode()).decode()
+        encrypted_password = f.encrypt(credentials.password.encode()).decode()
+        
+        # Save to database
+        db_credentials = models.AmazfitCredentials(
+            user_id=current_user.id,
+            app_token=service.app_token,
+            user_id_amazfit=service.user_id,
+            email=encrypted_email,
+            password=encrypted_password
+        )
+        
+        # Update existing or create new
+        existing = db.query(models.AmazfitCredentials).filter(
+            models.AmazfitCredentials.user_id == current_user.id
+        ).first()
+        
+        if existing:
+            existing.app_token = service.app_token
+            existing.user_id_amazfit = service.user_id
+            existing.email = encrypted_email
+            existing.password = encrypted_password
+            existing.updated_at = datetime.utcnow()
+        else:
+            db.add(db_credentials)
+        
+        db.commit()
+        
+        return {
+            "message": "Amazfit account connected successfully",
+            "user_id": service.user_id
+        }
+        
+    except Exception as e:
+        db.rollback()
+        print(f"Error in connect_amazfit_account: {str(e)}")
+        # Provide more specific error messages
+        if "Login failed" in str(e) or "Login error" in str(e):
+            raise HTTPException(status_code=400, detail="Invalid email or password. Please check your Amazfit credentials.")
+        elif "Failed to communicate with Huami API" in str(e):
+            raise HTTPException(status_code=400, detail="Unable to connect to Amazfit servers. Please try again later.")
+        else:
+            raise HTTPException(status_code=400, detail=f"Failed to connect Amazfit account: {str(e)}")
+
+@app.get("/amazfit/day")
+def get_amazfit_day_data(
+    date_str: str,  # YYYY-MM-DD format
+    adjust_date: bool = False,  # Add option to adjust date for timezone issues
+    current_user=Depends(deps.get_current_user),
+    db=Depends(deps.get_db)
+):
+    """Get Amazfit data for a specific day with caching"""
+    try:
+        # Parse date and convert to IST (UTC+5:30)
+        # Amazfit API returns data in UTC, but we need to display in IST
+        from datetime import timezone, timedelta
+        
+        # Parse the input date as UTC
+        parsed_datetime = datetime.strptime(date_str, "%Y-%m-%d")
+        utc_date = parsed_datetime.replace(tzinfo=timezone.utc)
+        
+        # Convert to IST (UTC+5:30)
+        ist_offset = timedelta(hours=5, minutes=30)
+        ist_date = utc_date + ist_offset
+        
+        # Use the IST date for API requests
+        target_date = ist_date.date()
+        
+        print(f"DEBUG: Input date: {date_str}")
+        print(f"DEBUG: UTC date: {utc_date.date()}")
+        print(f"DEBUG: IST date: {target_date}")
+        print(f"DEBUG: Requesting data for IST date: {target_date}")
+        
+        # First, check if we have cached data in the database
+        cached_activity = db.query(models.ActivityData).filter(
+            models.ActivityData.user_id == current_user.id,
+            models.ActivityData.date == target_date
+        ).first()
+        
+        cached_hr = db.query(models.HRSession).filter(
+            models.HRSession.user_id == current_user.id,
+            models.HRSession.logged_at >= target_date,
+            models.HRSession.logged_at < target_date + timedelta(days=1)
+        ).first()
+        
+        # If we have cached data, return it
+        if cached_activity and cached_activity.raw_data:
+            raw_data = cached_activity.raw_data
+            
+            # Extract heart rate data from cached HR session
+            hr_data = []
+            if cached_hr and cached_hr.session_data:
+                hr_data = cached_hr.session_data.get('hr_values', [])
+            
+            return {
+                "date": date_str,
+                "heart_rate": hr_data,
+                "steps": cached_activity.steps or 0,
+                "calories": cached_activity.calories_burned or 0,
+                "sleep_duration": int((cached_activity.sleep_hours or 0) * 3600),  # Convert hours to seconds
+                "activity": {
+                    "steps": cached_activity.steps,
+                    "calories": cached_activity.calories_burned,
+                    "distance": float(cached_activity.distance_km or 0),
+                    "active_minutes": cached_activity.active_minutes
+                },
+                "sleep": {
+                    "sleep_time_hours": float(cached_activity.sleep_hours or 0),
+                    "deep_sleep_hours": float(cached_activity.deep_sleep_hours or 0),
+                    "light_sleep_hours": float(cached_activity.light_sleep_hours or 0),
+                    "rem_sleep_hours": float(cached_activity.rem_sleep_hours or 0),
+                    "awake_hours": float(cached_activity.awake_hours or 0),
+                    "sleep_time_seconds": int((cached_activity.sleep_hours or 0) * 3600)
+                },
+                "summary": raw_data.get('summary', {}),
+                "workouts": raw_data.get('workouts', []),
+                "events": raw_data.get('events', []),
+                "hrv": raw_data.get('hrv', 0),
+                "hr_stats": raw_data.get('hr_stats', {}),
+                "cached": True
+            }
+        
+        # If no cached data, fetch from API
+        credentials = db.query(models.AmazfitCredentials).filter(
+            models.AmazfitCredentials.user_id == current_user.id
+        ).first()
+        
+        if not credentials:
+            raise HTTPException(status_code=404, detail="Amazfit account not connected")
+        
+        # Check if we have the required fields
+        if not credentials.app_token or not credentials.user_id_amazfit:
+            raise HTTPException(status_code=400, detail="Amazfit credentials incomplete. Please reconnect your account.")
+        
+        # Use stored app_token and user_id directly instead of decrypting email/password
+        from .amazfit_service import AmazfitService
+        service = AmazfitService(credentials.app_token, credentials.user_id_amazfit)
+        
+        try:
+            # Use the working approach: get_daily_summary which uses band_data
+            daily_summary = service.get_daily_summary(target_date)
+            
+            # Extract data from the summary
+            heart_rate = daily_summary.get('heart_rate', [])
+            activity = daily_summary.get('activity', {})
+            sleep = daily_summary.get('sleep', {})
+            band_data = daily_summary.get('band_data', {})
+            summary = service.decode_band_summary(band_data)
+            
+            # Cache the data in the database
+            try:
+                # Save activity data
+                if cached_activity:
+                    # Update existing record
+                    cached_activity.steps = activity.get('steps', 0)
+                    cached_activity.calories_burned = activity.get('calories', 0)
+                    cached_activity.distance_km = activity.get('distance', 0) / 1000  # Convert meters to km
+                    cached_activity.active_minutes = activity.get('active_minutes', 0)
+                    cached_activity.sleep_hours = sleep.get('sleep_time_hours', 0)
+                    cached_activity.deep_sleep_hours = sleep.get('deep_sleep_hours', 0)
+                    cached_activity.light_sleep_hours = sleep.get('light_sleep_hours', 0)
+                    cached_activity.rem_sleep_hours = sleep.get('rem_sleep_hours', 0)
+                    cached_activity.awake_hours = sleep.get('awake_hours', 0)
+                    cached_activity.raw_data = daily_summary
+                    cached_activity.updated_at = datetime.utcnow()
+                else:
+                    # Create new record
+                    new_activity = models.ActivityData(
+                        user_id=current_user.id,
+                        date=target_date,
+                        steps=activity.get('steps', 0),
+                        calories_burned=activity.get('calories', 0),
+                        distance_km=activity.get('distance', 0) / 1000,  # Convert meters to km
+                        active_minutes=activity.get('active_minutes', 0),
+                        sleep_hours=sleep.get('sleep_time_hours', 0),
+                        deep_sleep_hours=sleep.get('deep_sleep_hours', 0),
+                        light_sleep_hours=sleep.get('light_sleep_hours', 0),
+                        rem_sleep_hours=sleep.get('rem_sleep_hours', 0),
+                        awake_hours=sleep.get('awake_hours', 0),
+                        raw_data=daily_summary
+                    )
+                    db.add(new_activity)
+                
+                # Save heart rate data if available
+                if heart_rate and len(heart_rate) > 0:
+                    # Calculate HR statistics
+                    valid_hr = [hr for hr in heart_rate if hr > 0]
+                    if valid_hr:
+                        hr_stats = {
+                            'avg_hr': sum(valid_hr) // len(valid_hr),
+                            'max_hr': max(valid_hr),
+                            'min_hr': min(valid_hr),
+                            'duration_minutes': len(valid_hr),
+                            'total_readings': len(heart_rate),
+                            'valid_readings': len(valid_hr)
+                        }
+                        
+                        if cached_hr:
+                            # Update existing HR session
+                            cached_hr.avg_hr = hr_stats['avg_hr']
+                            cached_hr.max_hr = hr_stats['max_hr']
+                            cached_hr.min_hr = hr_stats['min_hr']
+                            cached_hr.duration_minutes = hr_stats['duration_minutes']
+                            cached_hr.session_data = {
+                                'hr_values': heart_rate,
+                                'stats': hr_stats
+                            }
+                        else:
+                            # Create new HR session
+                            new_hr = models.HRSession(
+                                user_id=current_user.id,
+                                avg_hr=hr_stats['avg_hr'],
+                                max_hr=hr_stats['max_hr'],
+                                min_hr=hr_stats['min_hr'],
+                                duration_minutes=hr_stats['duration_minutes'],
+                                session_data={
+                                    'hr_values': heart_rate,
+                                    'stats': hr_stats
+                                },
+                                logged_at=datetime.combine(target_date, datetime.min.time())
+                            )
+                            db.add(new_hr)
+                
+                db.commit()
+                
+            except Exception as cache_error:
+                # Log cache error but don't fail the request
+                print(f"Failed to cache data: {cache_error}")
+                db.rollback()
+            
+        except Exception as e:
+            # If Huami API returns 404 (no data), return empty/default response
+            if "404" in str(e) or "Not Found" in str(e):
+                return {
+                    "date": date_str,
+                    "heart_rate": [],
+                    "steps": 0,
+                    "calories": 0,
+                    "sleep_duration": 0,
+                    "activity": {},
+                    "sleep": {},
+                    "summary": {},
+                    "cached": False
+                }
+            else:
+                print(f"Error in get_amazfit_day_data: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"Failed to get day data: {str(e)}")
+        
+        # Process the data from the summary
+        steps = activity.get('steps', 0)
+        calories = activity.get('calories', 0)
+        sleep_duration = sleep.get('sleep_time_seconds', 0)
+        
+        return {
+            "date": date_str,
+            "heart_rate": heart_rate,
+            "steps": steps,
+            "calories": calories,
+            "sleep_duration": sleep_duration,  # in seconds
+            "activity": activity,
+            "sleep": sleep,
+            "summary": summary,
+            "workouts": daily_summary.get('workouts', []),
+            "events": daily_summary.get('events', []),
+            "hrv": daily_summary.get('hrv', 0),
+            "hr_stats": daily_summary.get('hr_stats', {}),
+            "cached": False
+        }
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid date format: {str(e)}")
+    except Exception as e:
+        print(f"Error in get_amazfit_day_data: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get day data: {str(e)}")
+
+@app.post("/amazfit/refresh-token")
+def refresh_amazfit_token(
+    current_user=Depends(deps.get_current_user),
+    db=Depends(deps.get_db)
+):
+    """Refresh Amazfit token using stored credentials"""
+    try:
+        # Get credentials
+        credentials = db.query(models.AmazfitCredentials).filter(
+            models.AmazfitCredentials.user_id == current_user.id
+        ).first()
+        
+        if not credentials:
+            raise HTTPException(status_code=404, detail="Amazfit account not connected")
+        
+        # Decrypt credentials
+        encryption_key = os.getenv("AMAZFIT_ENCRYPTION_KEY")
+        if not encryption_key:
+            raise HTTPException(status_code=500, detail="Encryption key not configured")
+        
+        f = Fernet(encryption_key.encode())
+        email = f.decrypt(credentials.email.encode()).decode()
+        password = f.decrypt(credentials.password.encode()).decode()
+        
+        # Get fresh token
+        from .amazfit_service import AmazfitService
+        service = AmazfitService.from_credentials(email, password)
+        
+        # Update database
+        credentials.app_token = service.app_token
+        credentials.user_id_amazfit = service.user_id
+        credentials.updated_at = datetime.utcnow()
+        db.commit()
+        
+        return {
+            "message": "Token refreshed successfully",
+            "user_id": service.user_id
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to refresh token: {str(e)}")
+
+# User Profile endpoints
+@app.post("/profile", response_model=schemas.UserProfileResponse)
+def create_or_update_profile(profile: schemas.UserProfileCreate, user=Depends(deps.get_current_user), db=Depends(deps.get_db)):
+    """Create or update user profile"""
+    profile_data = profile.dict()
+    db_profile = crud.create_user_profile(db, user.id, profile_data)
+    return db_profile
+
+@app.get("/profile", response_model=schemas.UserProfileResponse)
+def get_profile(user=Depends(deps.get_current_user), db=Depends(deps.get_db)):
+    """Get user profile"""
+    profile = crud.get_user_profile(db, user.id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    return profile
+
+@app.put("/profile", response_model=schemas.UserProfileResponse)
+def update_profile(profile: schemas.UserProfileUpdate, user=Depends(deps.get_current_user), db=Depends(deps.get_db)):
+    """Update user profile"""
+    existing_profile = crud.get_user_profile(db, user.id)
+    if not existing_profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    
+    profile_data = profile.dict(exclude_unset=True)
+    db_profile = crud.create_user_profile(db, user.id, profile_data)
+    return db_profile
+
+# Food Bank endpoints
+@app.get("/food-bank/{period}", response_model=schemas.FoodBankResponse)
+def get_food_bank(period: str, user=Depends(deps.get_current_user), db=Depends(deps.get_db)):
+    """Get food bank data for a period (daily, weekly, monthly)"""
+    if period not in ['daily', 'weekly', 'monthly']:
+        raise HTTPException(status_code=400, detail="Period must be daily, weekly, or monthly")
+    
+    # Calculate date range
+    now = datetime.utcnow()
+    if period == 'daily':
+        start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+    elif period == 'weekly':
+        start_date = now - timedelta(days=now.weekday())
+        start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = start_date + timedelta(days=6)
+        end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+    else:  # monthly
+        start_date = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        if now.month == 12:
+            end_date = now.replace(year=now.year + 1, month=1, day=1) - timedelta(days=1)
+        else:
+            end_date = now.replace(month=now.month + 1, day=1) - timedelta(days=1)
+        end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+    
+    summary = crud.calculate_nutritional_summary(db, user.id, period, start_date, end_date)
+    if not summary:
+        raise HTTPException(status_code=404, detail="User profile not found. Please create a profile first.")
+    
+    food_logs = crud.get_food_logs_by_period(db, user.id, period, start_date, end_date)
+    
+    return schemas.FoodBankResponse(
+        summary=summary,
+        food_logs=food_logs
+    )
+
+@app.get("/nutritional-requirements")
+def get_nutritional_requirements(user=Depends(deps.get_current_user), db=Depends(deps.get_db)):
+    """Get user's daily nutritional requirements"""
+    profile = crud.get_user_profile(db, user.id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    
+    requirements = crud.calculate_nutritional_requirements(profile)
+    return {"requirements": requirements}

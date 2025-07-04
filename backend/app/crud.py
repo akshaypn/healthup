@@ -298,15 +298,381 @@ def get_food_log_with_analysis(db: Session, food_log_id: int, user_id: str):
     }
 
 def get_food_logs_with_analysis(db: Session, user_id: str, limit: int = 10):
-    """Get food logs with their analyses"""
-    food_logs = get_recent_food_logs(db, user_id, limit)
+    """Get food logs with analysis for a user"""
+    logs = db.query(models.FoodLog).filter(
+        models.FoodLog.user_id == user_id
+    ).order_by(models.FoodLog.logged_at.desc()).limit(limit).all()
     
     result = []
-    for food_log in food_logs:
-        analysis = get_food_log_analysis(db, food_log.id, user_id)
+    for log in logs:
+        analysis = get_food_log_analysis(db, log.id, user_id)
         result.append({
-            'food_log': food_log,
+            'food_log': log,
             'analysis': analysis
         })
     
     return result
+
+# Amazfit Integration CRUD Functions
+def create_amazfit_credentials(db: Session, user_id: str, credentials: schemas.AmazfitCredentialsCreate):
+    """Create or update Amazfit credentials for a user"""
+    existing = db.query(models.AmazfitCredentials).filter(
+        models.AmazfitCredentials.user_id == user_id
+    ).first()
+    
+    if existing:
+        # Update existing credentials
+        existing.app_token = credentials.app_token
+        existing.user_id_amazfit = credentials.user_id_amazfit
+        existing.updated_at = datetime.utcnow()
+        db.commit()
+        db.refresh(existing)
+        return existing
+    else:
+        # Create new credentials
+        db_credentials = models.AmazfitCredentials(
+            user_id=user_id,
+            app_token=credentials.app_token,
+            user_id_amazfit=credentials.user_id_amazfit
+        )
+        db.add(db_credentials)
+        db.commit()
+        db.refresh(db_credentials)
+        return db_credentials
+
+def get_amazfit_credentials(db: Session, user_id: str):
+    """Get Amazfit credentials for a user"""
+    return db.query(models.AmazfitCredentials).filter(
+        models.AmazfitCredentials.user_id == user_id
+    ).first()
+
+def delete_amazfit_credentials(db: Session, user_id: str):
+    """Delete Amazfit credentials for a user"""
+    credentials = db.query(models.AmazfitCredentials).filter(
+        models.AmazfitCredentials.user_id == user_id
+    ).first()
+    
+    if credentials:
+        db.delete(credentials)
+        db.commit()
+        return True
+    return False
+
+def create_activity_data(db: Session, user_id: str, activity: schemas.ActivityDataCreate):
+    """Create or update activity data"""
+    existing = db.query(models.ActivityData).filter(
+        models.ActivityData.user_id == user_id,
+        models.ActivityData.date == activity.date
+    ).first()
+    
+    if existing:
+        # Update existing record
+        for field, value in activity.dict(exclude_unset=True).items():
+            setattr(existing, field, value)
+        existing.updated_at = datetime.utcnow()
+        db.commit()
+        db.refresh(existing)
+        return existing
+    else:
+        # Create new record
+        db_activity = models.ActivityData(
+            user_id=user_id,
+            **activity.dict()
+        )
+        db.add(db_activity)
+        db.commit()
+        db.refresh(db_activity)
+        return db_activity
+
+def get_activity_data(db: Session, user_id: str, start_date: date = None, end_date: date = None):
+    """Get activity data for a user within date range"""
+    query = db.query(models.ActivityData).filter(models.ActivityData.user_id == user_id)
+    
+    if start_date:
+        query = query.filter(models.ActivityData.date >= start_date)
+    if end_date:
+        query = query.filter(models.ActivityData.date <= end_date)
+    
+    return query.order_by(models.ActivityData.date.desc()).all()
+
+def get_recent_activity_data(db: Session, user_id: str, limit: int = 7):
+    """Get recent activity data for a user"""
+    return db.query(models.ActivityData).filter(
+        models.ActivityData.user_id == user_id
+    ).order_by(models.ActivityData.date.desc()).limit(limit).all()
+
+def create_steps_data(db: Session, user_id: str, steps: schemas.StepsDataCreate):
+    """Create or update steps data"""
+    existing = db.query(models.StepsData).filter(
+        models.StepsData.user_id == user_id,
+        models.StepsData.date == steps.date
+    ).first()
+    
+    if existing:
+        # Update existing record
+        for field, value in steps.dict(exclude_unset=True).items():
+            setattr(existing, field, value)
+        existing.updated_at = datetime.utcnow()
+        db.commit()
+        db.refresh(existing)
+        return existing
+    else:
+        # Create new record
+        db_steps = models.StepsData(
+            user_id=user_id,
+            **steps.dict()
+        )
+        db.add(db_steps)
+        db.commit()
+        db.refresh(db_steps)
+        return db_steps
+
+def get_steps_data(db: Session, user_id: str, start_date: date = None, end_date: date = None):
+    """Get steps data for a user within date range"""
+    query = db.query(models.StepsData).filter(models.StepsData.user_id == user_id)
+    
+    if start_date:
+        query = query.filter(models.StepsData.date >= start_date)
+    if end_date:
+        query = query.filter(models.StepsData.date <= end_date)
+    
+    return query.order_by(models.StepsData.date.desc()).all()
+
+def get_recent_steps_data(db: Session, user_id: str, limit: int = 7):
+    """Get recent steps data for a user"""
+    return db.query(models.StepsData).filter(
+        models.StepsData.user_id == user_id
+    ).order_by(models.StepsData.date.desc()).limit(limit).all()
+
+def get_today_activity_summary(db: Session, user_id: str):
+    """Get today's activity summary for dashboard"""
+    today = date.today()
+    
+    # Get today's activity data
+    activity = db.query(models.ActivityData).filter(
+        models.ActivityData.user_id == user_id,
+        models.ActivityData.date == today
+    ).first()
+    
+    # Get today's steps data
+    steps = db.query(models.StepsData).filter(
+        models.StepsData.user_id == user_id,
+        models.StepsData.date == today
+    ).first()
+    
+    return {
+        'activity': activity,
+        'steps': steps,
+        'total_calories_burned': (activity.calories_burned if activity else 0) + (steps.calories_burned if steps else 0),
+        'total_steps': steps.total_steps if steps else 0,
+        'active_minutes': activity.active_minutes if activity else 0,
+        'sleep_hours': activity.sleep_hours if activity else 0
+    }
+
+# User Profile CRUD
+def create_user_profile(db: Session, user_id: str, profile_data: dict):
+    """Create or update user profile"""
+    existing_profile = db.query(models.UserProfile).filter(
+        models.UserProfile.user_id == user_id
+    ).first()
+    
+    if existing_profile:
+        # Update existing profile
+        for key, value in profile_data.items():
+            setattr(existing_profile, key, value)
+        existing_profile.updated_at = datetime.utcnow()
+        db.commit()
+        db.refresh(existing_profile)
+        return existing_profile
+    else:
+        # Create new profile
+        db_profile = models.UserProfile(user_id=user_id, **profile_data)
+        db.add(db_profile)
+        db.commit()
+        db.refresh(db_profile)
+        return db_profile
+
+def get_user_profile(db: Session, user_id: str):
+    """Get user profile"""
+    return db.query(models.UserProfile).filter(
+        models.UserProfile.user_id == user_id
+    ).first()
+
+def calculate_nutritional_requirements(profile: models.UserProfile):
+    """Calculate daily nutritional requirements based on user profile"""
+    # Convert decimal values to float for calculations
+    weight_kg = float(profile.weight_kg)
+    height_cm = float(profile.height_cm)
+    age = int(profile.age)
+    
+    # Basic BMR calculation using Mifflin-St Jeor Equation
+    if profile.gender.lower() == 'male':
+        bmr = 10 * weight_kg + 6.25 * height_cm - 5 * age + 5
+    else:
+        bmr = 10 * weight_kg + 6.25 * height_cm - 5 * age - 161
+    
+    # Activity multipliers
+    activity_multipliers = {
+        'sedentary': 1.2,
+        'lightly_active': 1.375,
+        'moderately_active': 1.55,
+        'very_active': 1.725,
+        'extremely_active': 1.9
+    }
+    
+    tdee = bmr * activity_multipliers.get(profile.activity_level, 1.2)
+    
+    # Goal adjustments
+    if profile.goal == 'lose_weight':
+        tdee *= 0.85  # 15% deficit
+    elif profile.goal == 'gain_weight':
+        tdee *= 1.15  # 15% surplus
+    
+    # Macronutrient distribution
+    protein_g = weight_kg * 2.2  # 2.2g per kg body weight
+    fat_g = (tdee * 0.25) / 9  # 25% of calories from fat
+    carbs_g = (tdee - (protein_g * 4) - (fat_g * 9)) / 4  # Remaining calories from carbs
+    
+    # Micronutrient requirements (simplified)
+    requirements = {
+        'calories': {'target': tdee, 'unit': 'kcal'},
+        'protein_g': {'target': protein_g, 'unit': 'g'},
+        'fat_g': {'target': fat_g, 'unit': 'g'},
+        'carbs_g': {'target': carbs_g, 'unit': 'g'},
+        'fiber_g': {'target': 25, 'unit': 'g'},
+        'sugar_g': {'target': 50, 'unit': 'g'},
+        'sodium_mg': {'target': 2300, 'unit': 'mg'},
+        'vitamin_a_mcg': {'target': 900 if profile.gender.lower() == 'male' else 700, 'unit': 'μg'},
+        'vitamin_c_mg': {'target': 90 if profile.gender.lower() == 'male' else 75, 'unit': 'mg'},
+        'vitamin_d_mcg': {'target': 15, 'unit': 'μg'},
+        'vitamin_e_mg': {'target': 15, 'unit': 'mg'},
+        'vitamin_k_mcg': {'target': 120 if profile.gender.lower() == 'male' else 90, 'unit': 'μg'},
+        'vitamin_b1_mg': {'target': 1.2 if profile.gender.lower() == 'male' else 1.1, 'unit': 'mg'},
+        'vitamin_b2_mg': {'target': 1.3 if profile.gender.lower() == 'male' else 1.1, 'unit': 'mg'},
+        'vitamin_b3_mg': {'target': 16 if profile.gender.lower() == 'male' else 14, 'unit': 'mg'},
+        'vitamin_b5_mg': {'target': 5, 'unit': 'mg'},
+        'vitamin_b6_mg': {'target': 1.3 if profile.gender.lower() == 'male' else 1.3, 'unit': 'mg'},
+        'vitamin_b7_mcg': {'target': 30, 'unit': 'μg'},
+        'vitamin_b9_mcg': {'target': 400, 'unit': 'μg'},
+        'vitamin_b12_mcg': {'target': 2.4, 'unit': 'μg'},
+        'calcium_mg': {'target': 1000, 'unit': 'mg'},
+        'iron_mg': {'target': 8 if profile.gender.lower() == 'male' else 18, 'unit': 'mg'},
+        'magnesium_mg': {'target': 400 if profile.gender.lower() == 'male' else 310, 'unit': 'mg'},
+        'phosphorus_mg': {'target': 700, 'unit': 'mg'},
+        'potassium_mg': {'target': 3400 if profile.gender.lower() == 'male' else 2600, 'unit': 'mg'},
+        'zinc_mg': {'target': 11 if profile.gender.lower() == 'male' else 8, 'unit': 'mg'},
+        'copper_mg': {'target': 0.9, 'unit': 'mg'},
+        'manganese_mg': {'target': 2.3 if profile.gender.lower() == 'male' else 1.8, 'unit': 'mg'},
+        'selenium_mcg': {'target': 55, 'unit': 'μg'},
+        'chromium_mcg': {'target': 35 if profile.gender.lower() == 'male' else 25, 'unit': 'μg'},
+        'molybdenum_mcg': {'target': 45, 'unit': 'μg'},
+    }
+    
+    return requirements
+
+def get_food_logs_by_period(db: Session, user_id: str, period: str, start_date: datetime, end_date: datetime):
+    """Get food logs for a specific period"""
+    return db.query(models.FoodLog).filter(
+        models.FoodLog.user_id == user_id,
+        models.FoodLog.logged_at >= start_date,
+        models.FoodLog.logged_at <= end_date
+    ).order_by(models.FoodLog.logged_at.desc()).all()
+
+def calculate_nutritional_summary(db: Session, user_id: str, period: str, start_date: datetime, end_date: datetime):
+    """Calculate nutritional summary for a period"""
+    profile = get_user_profile(db, user_id)
+    if not profile:
+        return None
+    
+    requirements = calculate_nutritional_requirements(profile)
+    food_logs = get_food_logs_by_period(db, user_id, period, start_date, end_date)
+    
+    # Calculate consumed nutrients
+    consumed = {
+        'calories': 0,
+        'protein_g': 0,
+        'fat_g': 0,
+        'carbs_g': 0,
+        'fiber_g': 0,
+        'sugar_g': 0,
+        'sodium_mg': 0,
+        'vitamin_a_mcg': 0,
+        'vitamin_c_mg': 0,
+        'vitamin_d_mcg': 0,
+        'vitamin_e_mg': 0,
+        'vitamin_k_mcg': 0,
+        'vitamin_b1_mg': 0,
+        'vitamin_b2_mg': 0,
+        'vitamin_b3_mg': 0,
+        'vitamin_b5_mg': 0,
+        'vitamin_b6_mg': 0,
+        'vitamin_b7_mcg': 0,
+        'vitamin_b9_mcg': 0,
+        'vitamin_b12_mcg': 0,
+        'calcium_mg': 0,
+        'iron_mg': 0,
+        'magnesium_mg': 0,
+        'phosphorus_mg': 0,
+        'potassium_mg': 0,
+        'zinc_mg': 0,
+        'copper_mg': 0,
+        'manganese_mg': 0,
+        'selenium_mcg': 0,
+        'chromium_mcg': 0,
+        'molybdenum_mcg': 0,
+    }
+    
+    for log in food_logs:
+        for nutrient in consumed:
+            if hasattr(log, nutrient) and getattr(log, nutrient) is not None:
+                consumed[nutrient] += float(getattr(log, nutrient))
+    
+    # Calculate requirements and status
+    nutritional_requirements = []
+    for nutrient, data in requirements.items():
+        target = data['target']
+        consumed_val = consumed.get(nutrient, 0)
+        remaining = target - consumed_val
+        percentage = (consumed_val / target * 100) if target > 0 else 0
+        
+        # Determine status
+        if percentage < 80:
+            status = 'under'
+        elif percentage > 120:
+            status = 'over'
+        else:
+            status = 'adequate'
+        
+        nutritional_requirements.append(schemas.NutritionalRequirement(
+            nutrient=nutrient,
+            daily_target=target,
+            unit=data['unit'],
+            consumed=consumed_val,
+            remaining=remaining,
+            percentage=percentage,
+            status=status
+        ))
+    
+    # Calculate period multiplier for requirements
+    period_multipliers = {'daily': 1, 'weekly': 7, 'monthly': 30}
+    multiplier = period_multipliers.get(period, 1)
+    
+    # Adjust targets for period
+    for req in nutritional_requirements:
+        req.daily_target *= multiplier
+    
+    return schemas.NutritionalSummary(
+        period=period,
+        period_start=start_date.isoformat(),
+        period_end=end_date.isoformat(),
+        total_calories=consumed['calories'],
+        total_protein=consumed['protein_g'],
+        total_fat=consumed['fat_g'],
+        total_carbs=consumed['carbs_g'],
+        requirements=nutritional_requirements,
+        summary={
+            'total_food_items': len(food_logs),
+            'average_calories_per_day': consumed['calories'] / multiplier if multiplier > 0 else 0,
+            'completion_rate': sum(1 for r in nutritional_requirements if r.status == 'adequate') / len(nutritional_requirements) * 100
+        }
+    )

@@ -6,6 +6,8 @@ import Login from './components/Login'
 import Register from './components/Register'
 import WeightLog from './components/WeightLog'
 import FoodLog from './components/FoodLog'
+import FoodBank from './components/FoodBank'
+import Profile from './components/Profile'
 import HRLog from './components/HRLog'
 import Insights from './components/Insights'
 import Coach from './components/Coach'
@@ -69,6 +71,26 @@ const App: React.FC = () => {
                   <Navigation />
                   <main className="main-content">
                     <FoodLog />
+                  </main>
+                </div>
+              </PrivateRoute>
+            } />
+            <Route path="/food-bank" element={
+              <PrivateRoute>
+                <div className="app-container">
+                  <Navigation />
+                  <main className="main-content">
+                    <FoodBank />
+                  </main>
+                </div>
+              </PrivateRoute>
+            } />
+            <Route path="/profile" element={
+              <PrivateRoute>
+                <div className="app-container">
+                  <Navigation />
+                  <main className="main-content">
+                    <Profile />
                   </main>
                 </div>
               </PrivateRoute>

@@ -12,6 +12,8 @@ const Insights: React.FC = () => {
   const [insights, setInsights] = useState<{ [key: string]: Insight }>({});
   const [loading, setLoading] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState('daily');
+  const [generating, setGenerating] = useState<{ [key: string]: boolean }>({});
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchInsights();
@@ -19,13 +21,14 @@ const Insights: React.FC = () => {
 
   const fetchInsights = async () => {
     try {
+      setError(null);
       const periods = ['daily', 'weekly', 'monthly'];
       
       const insightsData: { [key: string]: Insight } = {};
       
       for (const period of periods) {
         const response = await fetch(`${import.meta.env.VITE_API_URL}/insight/${period}`, {
-          credentials: 'include', // Include cookies in the request
+          credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
           }
@@ -40,8 +43,75 @@ const Insights: React.FC = () => {
       setInsights(insightsData);
     } catch (error) {
       console.error('Failed to fetch insights:', error);
+      setError('Failed to load insights. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const generateInsight = async (period: string) => {
+    try {
+      setGenerating(prev => ({ ...prev, [period]: true }));
+      setError(null);
+      
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/insight/${period}/generate`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (result.regenerated) {
+          // Refresh insights after generation
+          await fetchInsights();
+        } else {
+          // Insight already exists, just update the state
+          setInsights(prev => ({
+            ...prev,
+            [period]: result.insight
+          }));
+        }
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to generate insight');
+      }
+    } catch (error) {
+      console.error('Failed to generate insight:', error);
+      setError(`Failed to generate ${period} insight: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setGenerating(prev => ({ ...prev, [period]: false }));
+    }
+  };
+
+  const regenerateInsight = async (period: string) => {
+    try {
+      setGenerating(prev => ({ ...prev, [period]: true }));
+      setError(null);
+      
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/insight/${period}/regenerate`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      if (response.ok) {
+        await response.json(); // Consume the response
+        // Refresh insights after regeneration
+        await fetchInsights();
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to regenerate insight');
+      }
+    } catch (error) {
+      console.error('Failed to regenerate insight:', error);
+      setError(`Failed to regenerate ${period} insight: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setGenerating(prev => ({ ...prev, [period]: false }));
     }
   };
 
@@ -77,6 +147,13 @@ const Insights: React.FC = () => {
     <div className="insights">
       <h1>AI Health Insights</h1>
       
+      {error && (
+        <div className="error-message">
+          <p>{error}</p>
+          <button onClick={() => setError(null)} className="dismiss-error">✕</button>
+        </div>
+      )}
+      
       <div className="insights-container">
         {/* Period Selector */}
         <div className="period-selector">
@@ -110,6 +187,15 @@ const Insights: React.FC = () => {
                   <span>Period: {formatDate(insights[selectedPeriod].period_start)}</span>
                   <span>Generated: {formatDate(insights[selectedPeriod].created_at)}</span>
                 </div>
+                <div className="insight-actions">
+                  <button 
+                    className="regenerate-btn"
+                    onClick={() => regenerateInsight(selectedPeriod)}
+                    disabled={generating[selectedPeriod]}
+                  >
+                    {generating[selectedPeriod] ? '🔄 Regenerating...' : '🔄 Regenerate'}
+                  </button>
+                </div>
               </div>
               
               <div className="insight-body">
@@ -120,9 +206,16 @@ const Insights: React.FC = () => {
             <div className="no-insight">
               <h2>No {selectedPeriod} insights yet</h2>
               <p>
-                Your AI coach is analyzing your {selectedPeriod} data. 
-                Keep logging your health metrics to receive personalized insights!
+                Your AI coach is ready to analyze your {selectedPeriod} data. 
+                Click the button below to generate personalized insights!
               </p>
+              <button 
+                className="generate-insight-btn"
+                onClick={() => generateInsight(selectedPeriod)}
+                disabled={generating[selectedPeriod]}
+              >
+                {generating[selectedPeriod] ? '🤖 Generating...' : '🤖 Generate Insight'}
+              </button>
               <div className="insight-tips">
                 <h3>What to expect:</h3>
                 <ul>
@@ -140,24 +233,34 @@ const Insights: React.FC = () => {
         <div className="insight-status">
           <h3>Insight Generation Status</h3>
           <div className="status-grid">
-            <div className="status-item">
-              <span className="status-label">Daily Insights</span>
-              <span className={`status-indicator ${insights.daily ? 'available' : 'pending'}`}>
-                {insights.daily ? '✓ Available' : '⏳ Pending'}
-              </span>
-            </div>
-            <div className="status-item">
-              <span className="status-label">Weekly Insights</span>
-              <span className={`status-indicator ${insights.weekly ? 'available' : 'pending'}`}>
-                {insights.weekly ? '✓ Available' : '⏳ Pending'}
-              </span>
-            </div>
-            <div className="status-item">
-              <span className="status-label">Monthly Insights</span>
-              <span className={`status-indicator ${insights.monthly ? 'available' : 'pending'}`}>
-                {insights.monthly ? '✓ Available' : '⏳ Pending'}
-              </span>
-            </div>
+            {['daily', 'weekly', 'monthly'].map(period => (
+              <div key={period} className="status-item">
+                <span className="status-label">{period.charAt(0).toUpperCase() + period.slice(1)} Insights</span>
+                <div className="status-actions">
+                  <span className={`status-indicator ${insights[period] ? 'available' : 'pending'}`}>
+                    {insights[period] ? '✓ Available' : '⏳ Pending'}
+                  </span>
+                  {!insights[period] && (
+                    <button 
+                      className="generate-btn-small"
+                      onClick={() => generateInsight(period)}
+                      disabled={generating[period]}
+                    >
+                      {generating[period] ? '🔄' : '🤖'}
+                    </button>
+                  )}
+                  {insights[period] && (
+                    <button 
+                      className="regenerate-btn-small"
+                      onClick={() => regenerateInsight(period)}
+                      disabled={generating[period]}
+                    >
+                      {generating[period] ? '🔄' : '🔄'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>

@@ -90,4 +90,39 @@ class ApiClient {
   }
 }
 
-export const apiClient = new ApiClient(); 
+export const apiClient = new ApiClient();
+
+// Amazfit API calls
+export const amazfitAPI = {
+  connectAccount: (credentials: { email: string; password: string }) =>
+    apiClient.post('/amazfit/connect', credentials),
+  
+  getCredentials: () => apiClient.get('/amazfit/credentials'),
+  
+  deleteCredentials: () => apiClient.delete('/amazfit/credentials'),
+  
+  syncData: (daysBack: number = 7) =>
+    apiClient.post('/amazfit/sync', { days_back: daysBack }),
+  
+  getActivityData: (startDate?: string, endDate?: string, limit: number = 7) => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    params.append('limit', limit.toString());
+    return apiClient.get(`/amazfit/activity?${params}`);
+  },
+  
+  getStepsData: (startDate?: string, endDate?: string, limit: number = 7) => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    params.append('limit', limit.toString());
+    return apiClient.get(`/amazfit/steps?${params}`);
+  },
+  
+  getTodaySummary: () => apiClient.get('/amazfit/today'),
+  
+  getDayData: (date: string) => apiClient.get(`/amazfit/day?date_str=${date}`),
+  
+  refreshToken: () => apiClient.post('/amazfit/refresh-token'),
+}; 

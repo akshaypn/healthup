@@ -572,6 +572,50 @@ const FoodLog: React.FC = () => {
     };
   };
 
+  // Add a helper to group nutrients for display
+  const MACROS = [
+    { key: 'calories', label: 'Calories', unit: 'kcal' },
+    { key: 'protein_g', label: 'Protein', unit: 'g' },
+    { key: 'fat_g', label: 'Fat', unit: 'g' },
+    { key: 'carbs_g', label: 'Carbs', unit: 'g' },
+    { key: 'fiber_g', label: 'Fiber', unit: 'g' },
+    { key: 'sugar_g', label: 'Sugar', unit: 'g' },
+    { key: 'saturated_fat_g', label: 'Saturated Fat', unit: 'g' },
+    { key: 'trans_fat_g', label: 'Trans Fat', unit: 'g' },
+    { key: 'polyunsaturated_fat_g', label: 'Polyunsaturated Fat', unit: 'g' },
+    { key: 'monounsaturated_fat_g', label: 'Monounsaturated Fat', unit: 'g' },
+    { key: 'cholesterol_mg', label: 'Cholesterol', unit: 'mg' },
+  ];
+  const VITAMINS = [
+    { key: 'vitamin_a_mcg', label: 'Vitamin A', unit: 'μg' },
+    { key: 'vitamin_c_mg', label: 'Vitamin C', unit: 'mg' },
+    { key: 'vitamin_d_mcg', label: 'Vitamin D', unit: 'μg' },
+    { key: 'vitamin_e_mg', label: 'Vitamin E', unit: 'mg' },
+    { key: 'vitamin_k_mcg', label: 'Vitamin K', unit: 'μg' },
+    { key: 'vitamin_b1_mg', label: 'Vitamin B1 (Thiamine)', unit: 'mg' },
+    { key: 'vitamin_b2_mg', label: 'Vitamin B2 (Riboflavin)', unit: 'mg' },
+    { key: 'vitamin_b3_mg', label: 'Vitamin B3 (Niacin)', unit: 'mg' },
+    { key: 'vitamin_b5_mg', label: 'Vitamin B5 (Pantothenic Acid)', unit: 'mg' },
+    { key: 'vitamin_b6_mg', label: 'Vitamin B6', unit: 'mg' },
+    { key: 'vitamin_b7_mcg', label: 'Vitamin B7 (Biotin)', unit: 'μg' },
+    { key: 'vitamin_b9_mcg', label: 'Vitamin B9 (Folate)', unit: 'μg' },
+    { key: 'vitamin_b12_mcg', label: 'Vitamin B12', unit: 'μg' },
+  ];
+  const MINERALS = [
+    { key: 'calcium_mg', label: 'Calcium', unit: 'mg' },
+    { key: 'iron_mg', label: 'Iron', unit: 'mg' },
+    { key: 'magnesium_mg', label: 'Magnesium', unit: 'mg' },
+    { key: 'phosphorus_mg', label: 'Phosphorus', unit: 'mg' },
+    { key: 'potassium_mg', label: 'Potassium', unit: 'mg' },
+    { key: 'sodium_mg', label: 'Sodium', unit: 'mg' },
+    { key: 'zinc_mg', label: 'Zinc', unit: 'mg' },
+    { key: 'copper_mg', label: 'Copper', unit: 'mg' },
+    { key: 'manganese_mg', label: 'Manganese', unit: 'mg' },
+    { key: 'selenium_mcg', label: 'Selenium', unit: 'μg' },
+    { key: 'chromium_mcg', label: 'Chromium', unit: 'μg' },
+    { key: 'molybdenum_mcg', label: 'Molybdenum', unit: 'μg' },
+  ];
+
   return (
     <div className="food-log">
       <h1>🤖 AI-Powered Food Tracking</h1>
@@ -768,26 +812,30 @@ const FoodLog: React.FC = () => {
                         <p className="meal-type">Meal: {food.meal_type}</p>
                       )}
                       <div className="nutrition-preview">
-                        {food.nutritional_data.calories_kcal && (
-                          <span className="nutrition-item">
-                            {Math.round(food.nutritional_data.calories_kcal)} kcal
-                          </span>
-                        )}
-                        {food.nutritional_data.protein_g && (
-                          <span className="nutrition-item">
-                            {food.nutritional_data.protein_g}g protein
-                          </span>
-                        )}
-                        {food.nutritional_data.carbs_g && (
-                          <span className="nutrition-item">
-                            {food.nutritional_data.carbs_g}g carbs
-                          </span>
-                        )}
-                        {food.nutritional_data.fat_g && (
-                          <span className="nutrition-item">
-                            {food.nutritional_data.fat_g}g fat
-                          </span>
-                        )}
+                        {/* Macros */}
+                        {MACROS.map(macro => (
+                          food.nutritional_data[macro.key] !== undefined && (
+                            <span className="nutrition-item" key={macro.key}>
+                              {macro.label}: {food.nutritional_data[macro.key]}{macro.unit}
+                            </span>
+                          )
+                        ))}
+                        {/* Vitamins */}
+                        {VITAMINS.map(vit => (
+                          food.nutritional_data[vit.key] !== undefined && (
+                            <span className="nutrition-item" key={vit.key}>
+                              {vit.label}: {food.nutritional_data[vit.key]}{vit.unit}
+                            </span>
+                          )
+                        ))}
+                        {/* Minerals */}
+                        {MINERALS.map(min => (
+                          food.nutritional_data[min.key] !== undefined && (
+                            <span className="nutrition-item" key={min.key}>
+                              {min.label}: {food.nutritional_data[min.key]}{min.unit}
+                            </span>
+                          )
+                        ))}
                       </div>
                     </div>
                   ))}
@@ -998,140 +1046,35 @@ const FoodLog: React.FC = () => {
                             </div>
                           )}
                         </div>
-
-                        {/* Additional Macronutrients */}
+                        {/* Macros */}
                         <div className="nutrition-section">
-                          <h6>Additional Macronutrients</h6>
-                          <div className="nutrition-row">
-                            <span>Fiber:</span>
-                            <span>{entry.fiber_g || 0}g</span>
-                          </div>
-                          <div className="nutrition-row">
-                            <span>Sugar:</span>
-                            <span>{entry.sugar_g || 0}g</span>
-                          </div>
-                          <div className="nutrition-row">
-                            <span>Saturated Fat:</span>
-                            <span>{entry.saturated_fat_g || 0}g</span>
-                          </div>
-                          <div className="nutrition-row">
-                            <span>Trans Fat:</span>
-                            <span>{entry.trans_fat_g || 0}g</span>
-                          </div>
-                          <div className="nutrition-row">
-                            <span>Cholesterol:</span>
-                            <span>{entry.cholesterol_mg || 0}mg</span>
-                          </div>
+                          <h6>Macronutrients</h6>
+                          {MACROS.map(macro => (
+                            <div className="nutrition-row" key={macro.key}>
+                              <span>{macro.label}:</span>
+                              <span>{entry[macro.key as keyof FoodEntry] ?? 0}{macro.unit}</span>
+                            </div>
+                          ))}
                         </div>
-
                         {/* Vitamins */}
                         <div className="nutrition-section">
                           <h6>Vitamins</h6>
-                          <div className="nutrition-row">
-                            <span>Vitamin A:</span>
-                            <span>{entry.vitamin_a_mcg || 0}μg</span>
-                          </div>
-                          <div className="nutrition-row">
-                            <span>Vitamin C:</span>
-                            <span>{entry.vitamin_c_mg || 0}mg</span>
-                          </div>
-                          <div className="nutrition-row">
-                            <span>Vitamin D:</span>
-                            <span>{entry.vitamin_d_mcg || 0}μg</span>
-                          </div>
-                          <div className="nutrition-row">
-                            <span>Vitamin E:</span>
-                            <span>{entry.vitamin_e_mg || 0}mg</span>
-                          </div>
-                          <div className="nutrition-row">
-                            <span>Vitamin K:</span>
-                            <span>{entry.vitamin_k_mcg || 0}μg</span>
-                          </div>
-                          <div className="nutrition-row">
-                            <span>Vitamin B1 (Thiamine):</span>
-                            <span>{entry.vitamin_b1_mg || 0}mg</span>
-                          </div>
-                          <div className="nutrition-row">
-                            <span>Vitamin B2 (Riboflavin):</span>
-                            <span>{entry.vitamin_b2_mg || 0}mg</span>
-                          </div>
-                          <div className="nutrition-row">
-                            <span>Vitamin B3 (Niacin):</span>
-                            <span>{entry.vitamin_b3_mg || 0}mg</span>
-                          </div>
-                          <div className="nutrition-row">
-                            <span>Vitamin B5 (Pantothenic Acid):</span>
-                            <span>{entry.vitamin_b5_mg || 0}mg</span>
-                          </div>
-                          <div className="nutrition-row">
-                            <span>Vitamin B6:</span>
-                            <span>{entry.vitamin_b6_mg || 0}mg</span>
-                          </div>
-                          <div className="nutrition-row">
-                            <span>Vitamin B7 (Biotin):</span>
-                            <span>{entry.vitamin_b7_mcg || 0}μg</span>
-                          </div>
-                          <div className="nutrition-row">
-                            <span>Vitamin B9 (Folate):</span>
-                            <span>{entry.vitamin_b9_mcg || 0}μg</span>
-                          </div>
-                          <div className="nutrition-row">
-                            <span>Vitamin B12:</span>
-                            <span>{entry.vitamin_b12_mcg || 0}μg</span>
-                          </div>
+                          {VITAMINS.map(vit => (
+                            <div className="nutrition-row" key={vit.key}>
+                              <span>{vit.label}:</span>
+                              <span>{entry[vit.key as keyof FoodEntry] ?? 0}{vit.unit}</span>
+                            </div>
+                          ))}
                         </div>
-
                         {/* Minerals */}
                         <div className="nutrition-section">
                           <h6>Minerals</h6>
-                          <div className="nutrition-row">
-                            <span>Calcium:</span>
-                            <span>{entry.calcium_mg || 0}mg</span>
-                          </div>
-                          <div className="nutrition-row">
-                            <span>Iron:</span>
-                            <span>{entry.iron_mg || 0}mg</span>
-                          </div>
-                          <div className="nutrition-row">
-                            <span>Magnesium:</span>
-                            <span>{entry.magnesium_mg || 0}mg</span>
-                          </div>
-                          <div className="nutrition-row">
-                            <span>Phosphorus:</span>
-                            <span>{entry.phosphorus_mg || 0}mg</span>
-                          </div>
-                          <div className="nutrition-row">
-                            <span>Potassium:</span>
-                            <span>{entry.potassium_mg || 0}mg</span>
-                          </div>
-                          <div className="nutrition-row">
-                            <span>Sodium:</span>
-                            <span>{entry.sodium_mg || 0}mg</span>
-                          </div>
-                          <div className="nutrition-row">
-                            <span>Zinc:</span>
-                            <span>{entry.zinc_mg || 0}mg</span>
-                          </div>
-                          <div className="nutrition-row">
-                            <span>Copper:</span>
-                            <span>{entry.copper_mg || 0}mg</span>
-                          </div>
-                          <div className="nutrition-row">
-                            <span>Manganese:</span>
-                            <span>{entry.manganese_mg || 0}mg</span>
-                          </div>
-                          <div className="nutrition-row">
-                            <span>Selenium:</span>
-                            <span>{entry.selenium_mcg || 0}μg</span>
-                          </div>
-                          <div className="nutrition-row">
-                            <span>Chromium:</span>
-                            <span>{entry.chromium_mcg || 0}μg</span>
-                          </div>
-                          <div className="nutrition-row">
-                            <span>Molybdenum:</span>
-                            <span>{entry.molybdenum_mcg || 0}μg</span>
-                          </div>
+                          {MINERALS.map(min => (
+                            <div className="nutrition-row" key={min.key}>
+                              <span>{min.label}:</span>
+                              <span>{entry[min.key as keyof FoodEntry] ?? 0}{min.unit}</span>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     </div>
