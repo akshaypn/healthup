@@ -455,7 +455,36 @@ async def analyze_food_log(
             carbs_g=nutrition_data["carbs_g"],
             fiber_g=nutrition_data["fiber_g"],
             sugar_g=nutrition_data["sugar_g"],
-            sodium_mg=nutrition_data["sodium_mg"]
+            sodium_mg=nutrition_data["sodium_mg"],
+            vitamin_a_mcg=food_log.vitamin_a_mcg,
+            vitamin_c_mg=food_log.vitamin_c_mg,
+            vitamin_d_mcg=food_log.vitamin_d_mcg,
+            vitamin_e_mg=food_log.vitamin_e_mg,
+            vitamin_k_mcg=food_log.vitamin_k_mcg,
+            vitamin_b1_mg=food_log.vitamin_b1_mg,
+            vitamin_b2_mg=food_log.vitamin_b2_mg,
+            vitamin_b3_mg=food_log.vitamin_b3_mg,
+            vitamin_b5_mg=food_log.vitamin_b5_mg,
+            vitamin_b6_mg=food_log.vitamin_b6_mg,
+            vitamin_b7_mcg=food_log.vitamin_b7_mcg,
+            vitamin_b9_mcg=food_log.vitamin_b9_mcg,
+            vitamin_b12_mcg=food_log.vitamin_b12_mcg,
+            calcium_mg=food_log.calcium_mg,
+            iron_mg=food_log.iron_mg,
+            magnesium_mg=food_log.magnesium_mg,
+            phosphorus_mg=food_log.phosphorus_mg,
+            potassium_mg=food_log.potassium_mg,
+            zinc_mg=food_log.zinc_mg,
+            copper_mg=food_log.copper_mg,
+            manganese_mg=food_log.manganese_mg,
+            selenium_mcg=food_log.selenium_mcg,
+            chromium_mcg=food_log.chromium_mcg,
+            molybdenum_mcg=food_log.molybdenum_mcg,
+            cholesterol_mg=food_log.cholesterol_mg,
+            saturated_fat_g=food_log.saturated_fat_g,
+            trans_fat_g=food_log.trans_fat_g,
+            polyunsaturated_fat_g=food_log.polyunsaturated_fat_g,
+            monounsaturated_fat_g=food_log.monounsaturated_fat_g
         )
         
         # Generate analysis using the food parser service
@@ -465,7 +494,7 @@ async def analyze_food_log(
         )
         
         food_parser = FoodParserService(mcp_config)
-        meal_analysis = await food_parser._generate_meal_analysis_with_agent([nutrition_item])
+        meal_analysis = await food_parser._generate_meal_analysis([nutrition_item])
         
         if meal_analysis:
             # Create analysis record
