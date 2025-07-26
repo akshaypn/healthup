@@ -54,13 +54,13 @@ class FoodLog(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'))
     description = Column(Text)
     
-    # Macronutrients
-    calories = Column(Integer)
-    protein_g = Column(Numeric(6,2))
-    fat_g = Column(Numeric(6,2))
-    carbs_g = Column(Numeric(6,2))
-    fiber_g = Column(Numeric(6,2))
-    sugar_g = Column(Numeric(6,2))
+    # Macronutrients with validation constraints
+    calories = Column(Integer, CheckConstraint('calories >= 0 AND calories <= 100000', name='check_calories_range'))
+    protein_g = Column(Numeric(6,2), CheckConstraint('protein_g >= 0 AND protein_g <= 1000', name='check_protein_range'))
+    fat_g = Column(Numeric(6,2), CheckConstraint('fat_g >= 0 AND fat_g <= 1000', name='check_fat_range'))
+    carbs_g = Column(Numeric(6,2), CheckConstraint('carbs_g >= 0 AND carbs_g <= 1000', name='check_carbs_range'))
+    fiber_g = Column(Numeric(6,2), CheckConstraint('fiber_g >= 0 AND fiber_g <= 200', name='check_fiber_range'))
+    sugar_g = Column(Numeric(6,2), CheckConstraint('sugar_g >= 0 AND sugar_g <= 1000', name='check_sugar_range'))
     
     # Micronutrients - Vitamins
     vitamin_a_mcg = Column(Numeric(8,2))  # Retinol Activity Equivalents

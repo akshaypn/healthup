@@ -1,4 +1,23 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL;
+// TypeScript declarations for runtime config
+declare global {
+  interface Window {
+    HEALTHUP_CONFIG?: {
+      API_URL?: string;
+    };
+  }
+}
+
+// Get API URL from runtime config or environment variable
+const getApiBaseUrl = () => {
+  // Check for runtime config first (for production deployments)
+  if (typeof window !== 'undefined' && window.HEALTHUP_CONFIG?.API_URL) {
+    return window.HEALTHUP_CONFIG.API_URL;
+  }
+  // Fall back to environment variable (for development)
+  return import.meta.env.VITE_API_URL;
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 interface ApiResponse<T = any> {
   data?: T;

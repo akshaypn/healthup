@@ -1,0 +1,30 @@
+{
+  "timestamp": "2025-07-26T21:56:36.405345",
+  "total_tests": 11,
+  "passed_tests": 8,
+  "total_bugs": 3,
+  "security_score": 72.72727272727273,
+  "critical_bugs": [
+    "test_bug_2_database_credentials_exposure"
+  ],
+  "high_bugs": [
+    "test_bug_3_encryption_key_security"
+  ],
+  "medium_bugs": [
+    "test_bug_10_food_parser_injection"
+  ],
+  "low_bugs": [],
+  "detailed_results": {
+    "test_bug_1_default_secret_key": true,
+    "test_bug_9_sql_injection_food_update": true,
+    "test_bug_13_no_rate_limiting": true,
+    "test_bug_15_debug_mode_production": true,
+    "test_bug_2_database_credentials_exposure": false,
+    "test_bug_3_encryption_key_security": false,
+    "test_bug_4_token_type_validation": true,
+    "test_bug_5_session_management": true,
+    "test_bug_6_transaction_rollback": true,
+    "test_bug_10_food_parser_injection": false,
+    "test_bug_11_data_validation": true
+  }
+}

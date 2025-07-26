@@ -70,7 +70,28 @@ class FoodLogCreate(BaseModel):
     fiber_g: Optional[float] = None
     sugar_g: Optional[float] = None
     
-    # Vitamins
+    @field_validator('calories')
+    @classmethod
+    def validate_calories(cls, v):
+        if v is not None and (v < 0 or v > 100000):
+            raise ValueError('Calories must be between 0 and 100,000')
+        return v
+    
+    @field_validator('protein_g', 'fat_g', 'carbs_g', 'sugar_g')
+    @classmethod 
+    def validate_macronutrients(cls, v):
+        if v is not None and (v < 0 or v > 1000):
+            raise ValueError('Macronutrient values must be between 0 and 1,000 grams')
+        return v
+    
+    @field_validator('fiber_g')
+    @classmethod
+    def validate_fiber(cls, v):
+        if v is not None and (v < 0 or v > 200):
+            raise ValueError('Fiber must be between 0 and 200 grams')
+        return v
+    
+    # Vitamins with validation
     vitamin_a_mcg: Optional[float] = None
     vitamin_c_mg: Optional[float] = None
     vitamin_d_mcg: Optional[float] = None
@@ -85,7 +106,21 @@ class FoodLogCreate(BaseModel):
     vitamin_b9_mcg: Optional[float] = None
     vitamin_b12_mcg: Optional[float] = None
     
-    # Minerals
+    @field_validator('vitamin_a_mcg', 'vitamin_d_mcg', 'vitamin_k_mcg', 'vitamin_b7_mcg', 'vitamin_b9_mcg', 'vitamin_b12_mcg')
+    @classmethod
+    def validate_vitamins_mcg(cls, v):
+        if v is not None and (v < 0 or v > 10000):
+            raise ValueError('Vitamin values in mcg must be between 0 and 10,000')
+        return v
+    
+    @field_validator('vitamin_c_mg', 'vitamin_e_mg', 'vitamin_b1_mg', 'vitamin_b2_mg', 'vitamin_b3_mg', 'vitamin_b5_mg', 'vitamin_b6_mg')
+    @classmethod
+    def validate_vitamins_mg(cls, v):
+        if v is not None and (v < 0 or v > 5000):
+            raise ValueError('Vitamin values in mg must be between 0 and 5,000')
+        return v
+    
+    # Minerals with validation
     calcium_mg: Optional[float] = None
     iron_mg: Optional[float] = None
     magnesium_mg: Optional[float] = None
@@ -98,6 +133,20 @@ class FoodLogCreate(BaseModel):
     selenium_mcg: Optional[float] = None
     chromium_mcg: Optional[float] = None
     molybdenum_mcg: Optional[float] = None
+    
+    @field_validator('calcium_mg', 'iron_mg', 'magnesium_mg', 'phosphorus_mg', 'potassium_mg', 'sodium_mg', 'zinc_mg', 'copper_mg', 'manganese_mg')
+    @classmethod
+    def validate_minerals_mg(cls, v):
+        if v is not None and (v < 0 or v > 10000):
+            raise ValueError('Mineral values in mg must be between 0 and 10,000')
+        return v
+    
+    @field_validator('selenium_mcg', 'chromium_mcg', 'molybdenum_mcg')
+    @classmethod
+    def validate_minerals_mcg(cls, v):
+        if v is not None and (v < 0 or v > 1000):
+            raise ValueError('Mineral values in mcg must be between 0 and 1,000')
+        return v
     
     # Other nutrients
     cholesterol_mg: Optional[float] = None

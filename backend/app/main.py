@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, status
+from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -12,9 +12,21 @@ from .food_parser import FoodParserService
 from .mcp_server import get_mcp_client
 from cryptography.fernet import Fernet
 
+# Rate limiting imports
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
 load_dotenv()
 
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
+
 app = FastAPI(title="HealthUp API", version="1.0.0")
+
+# Add rate limiting state and error handler
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Configure CORS
 # When credentials (cookies) are included in requests, the Access-Control-Allow-Origin header must
@@ -59,7 +71,8 @@ mcp_config = schemas.MCPServerConfig(
 food_parser_service = FoodParserService(mcp_config)
 
 @app.get("/")
-def root():
+@limiter.limit("5/minute")
+def root(request: Request):
     return {"message": "HealthUp API"}
 
 app.include_router(auth_router)
@@ -1073,4 +1086,22 @@ def get_nutritional_requirements(user=Depends(deps.get_current_user), db=Depends
         raise HTTPException(status_code=404, detail="Profile not found")
     
     requirements = crud.calculate_nutritional_requirements(profile)
-    return {"requirements": requirements}
+    
+    # Flatten response for frontend compatibility
+    flattened = {
+        "daily_calories": requirements.get("calories", {}).get("target"),
+        "daily_protein_g": requirements.get("protein_g", {}).get("target"),
+        "daily_fat_g": requirements.get("fat_g", {}).get("target"),
+        "daily_carbs_g": requirements.get("carbs_g", {}).get("target"),
+        "daily_fiber_g": requirements.get("fiber_g", {}).get("target"),
+        "daily_sugar_g": requirements.get("sugar_g", {}).get("target"),
+        "daily_sodium_mg": requirements.get("sodium_mg", {}).get("target"),
+        "daily_vitamin_c_mg": requirements.get("vitamin_c_mg", {}).get("target"),
+        "daily_vitamin_d_mcg": requirements.get("vitamin_d_mcg", {}).get("target"),
+        "daily_calcium_mg": requirements.get("calcium_mg", {}).get("target"),
+        "daily_iron_mg": requirements.get("iron_mg", {}).get("target"),
+        # Keep the detailed structure for future use
+        "detailed_requirements": requirements
+    }
+    
+    return flattened

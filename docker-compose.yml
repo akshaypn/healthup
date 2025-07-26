@@ -39,14 +39,14 @@ services:
     environment:
       - DATABASE_URL=postgresql://healthup:healthup_secure_password_a2032334186a8000@postgres:5432/healthup
       - REDIS_URL=redis://redis:6379
-      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-this-in-production}
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY environment variable is required}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - COOKIE_SECURE=${COOKIE_SECURE:-false}
       - COOKIE_DOMAIN=${COOKIE_DOMAIN:-}
       - COOKIE_SAMESITE=${COOKIE_SAMESITE:-lax}
       - FRONTEND_ORIGINS=${FRONTEND_ORIGINS:-http://100.123.199.100:3000}
-      - AMAZFIT_ENCRYPTION_KEY=${AMAZFIT_ENCRYPTION_KEY:-U4J8mBaHpSdNc84WvQ4p53MnsgcMfRbpfgVey_VRnRY=}
+      - AMAZFIT_ENCRYPTION_KEY=${AMAZFIT_ENCRYPTION_KEY:?AMAZFIT_ENCRYPTION_KEY environment variable is required}
     ports:
       - "8000:8000"
     depends_on:
@@ -67,10 +67,10 @@ services:
     environment:
       - DATABASE_URL=postgresql://healthup:healthup_secure_password_a2032334186a8000@postgres:5432/healthup
       - REDIS_URL=redis://redis:6379
-      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-this-in-production}
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY environment variable is required}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - AMAZFIT_ENCRYPTION_KEY=${AMAZFIT_ENCRYPTION_KEY:-U4J8mBaHpSdNc84WvQ4p53MnsgcMfRbpfgVey_VRnRY=}
+      - AMAZFIT_ENCRYPTION_KEY=${AMAZFIT_ENCRYPTION_KEY:?AMAZFIT_ENCRYPTION_KEY environment variable is required}
     depends_on:
       postgres:
         condition: service_healthy
@@ -89,10 +89,10 @@ services:
     environment:
       - DATABASE_URL=postgresql://healthup:healthup_secure_password_a2032334186a8000@postgres:5432/healthup
       - REDIS_URL=redis://redis:6379
-      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-this-in-production}
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY environment variable is required}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - AMAZFIT_ENCRYPTION_KEY=${AMAZFIT_ENCRYPTION_KEY:-U4J8mBaHpSdNc84WvQ4p53MnsgcMfRbpfgVey_VRnRY=}
+      - AMAZFIT_ENCRYPTION_KEY=${AMAZFIT_ENCRYPTION_KEY:?AMAZFIT_ENCRYPTION_KEY environment variable is required}
     depends_on:
       postgres:
         condition: service_healthy

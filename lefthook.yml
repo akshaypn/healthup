@@ -33,3 +33,10 @@
 #       runner: node
 #     "any.go":
 #       runner: go run
+
+prepare-commit-msg:
+  commands:
+    # Add any prepare-commit-msg commands here if needed
+    # For now, this is just a placeholder to prevent the error
+    placeholder:
+      run: echo "prepare-commit-msg hook executed"

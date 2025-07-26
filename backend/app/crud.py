@@ -1,10 +1,34 @@
 from sqlalchemy.orm import Session
 from . import models, schemas
 from datetime import datetime, date, timedelta
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from passlib.context import CryptContext
+from sqlalchemy import text, func
+from . import models, schemas
+from decimal import Decimal
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def convert_decimals_to_floats(obj):
+    """Convert Decimal fields to float for JSON serialization"""
+    if hasattr(obj, '__dict__'):
+        # List of known Decimal fields in FoodLog model
+        decimal_fields = [
+            'protein_g', 'fat_g', 'carbs_g', 'fiber_g', 'sugar_g',
+            'vitamin_a_mcg', 'vitamin_c_mg', 'vitamin_d_mcg', 'vitamin_e_mg', 
+            'vitamin_k_mcg', 'vitamin_b1_mg', 'vitamin_b2_mg', 'vitamin_b3_mg',
+            'vitamin_b5_mg', 'vitamin_b6_mg', 'vitamin_b7_mcg', 'vitamin_b9_mcg',
+            'vitamin_b12_mcg', 'calcium_mg', 'iron_mg', 'magnesium_mg', 
+            'phosphorus_mg', 'potassium_mg', 'zinc_mg', 'copper_mg',
+            'manganese_mg', 'selenium_mcg', 'chromium_mcg', 'molybdenum_mcg'
+        ]
+        
+        for field_name in decimal_fields:
+            if hasattr(obj, field_name):
+                field_value = getattr(obj, field_name)
+                if field_value is not None and isinstance(field_value, Decimal):
+                    setattr(obj, field_name, float(field_value))
+    return obj
 
 def get_user_by_email(db: Session, email: str):
     """Get user by email"""
@@ -47,11 +71,12 @@ def create_food_log(db: Session, user_id, log: schemas.FoodLogCreate):
     db.add(db_log)
     db.commit()
     db.refresh(db_log)
-    return db_log
+    return convert_decimals_to_floats(db_log)
 
 def get_food_logs(db: Session, user_id):
     """Get all food logs for a user"""
-    return db.query(models.FoodLog).filter(models.FoodLog.user_id == user_id).order_by(models.FoodLog.logged_at.desc()).all()
+    logs = db.query(models.FoodLog).filter(models.FoodLog.user_id == user_id).order_by(models.FoodLog.logged_at.desc()).all()
+    return [convert_decimals_to_floats(log) for log in logs]
 
 def get_recent_food_logs(db: Session, user_id, limit: int = 10):
     """Get recent food logs for a user"""
@@ -87,7 +112,7 @@ def update_food_log(db: Session, food_log_id: int, user_id: str, updates: dict):
     
     db.commit()
     db.refresh(db_log)
-    return db_log
+    return convert_decimals_to_floats(db_log)
 
 def delete_food_log(db: Session, food_log_id: int, user_id: str):
     """Delete a food log"""
@@ -529,7 +554,19 @@ def calculate_nutritional_requirements(profile: models.UserProfile):
         tdee *= 1.15  # 15% surplus
     
     # Macronutrient distribution
-    protein_g = weight_kg * 2.2  # 2.2g per kg body weight
+    # Protein calculation based on activity level and goals
+    if profile.activity_level in ['very_active', 'extremely_active']:
+        protein_multiplier = 1.6  # Higher for very active individuals
+    elif profile.activity_level in ['moderately_active']:
+        protein_multiplier = 1.2  # Moderate for active individuals
+    elif profile.goal == 'gain_weight':
+        protein_multiplier = 1.4  # Higher for muscle building
+    elif profile.goal == 'lose_weight':
+        protein_multiplier = 1.2  # Higher for weight loss to preserve muscle
+    else:
+        protein_multiplier = 0.8  # RDA for sedentary individuals
+    
+    protein_g = weight_kg * protein_multiplier  # Reasonable protein requirements
     fat_g = (tdee * 0.25) / 9  # 25% of calories from fat
     carbs_g = (tdee - (protein_g * 4) - (fat_g * 9)) / 4  # Remaining calories from carbs
     
