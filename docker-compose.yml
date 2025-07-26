@@ -45,7 +45,7 @@ services:
       - COOKIE_SECURE=${COOKIE_SECURE:-false}
       - COOKIE_DOMAIN=${COOKIE_DOMAIN:-}
       - COOKIE_SAMESITE=${COOKIE_SAMESITE:-lax}
-      - FRONTEND_ORIGINS=${FRONTEND_ORIGINS:-http://100.123.199.100:3000}
+      - FRONTEND_ORIGINS=${FRONTEND_ORIGINS:-http://${EC2_IP:-localhost}:3000}
       - AMAZFIT_ENCRYPTION_KEY=${AMAZFIT_ENCRYPTION_KEY:?AMAZFIT_ENCRYPTION_KEY environment variable is required}
     ports:
       - "8000:8000"
@@ -111,7 +111,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - VITE_API_URL=${VITE_API_URL:-http://100.123.199.100:8000}
+      - VITE_API_URL=${VITE_API_URL:-http://${EC2_IP:-localhost}:8000}
       - VITE_GEMINI_API_KEY=${GEMINI_API_KEY}
     depends_on:
       - backend

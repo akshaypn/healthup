@@ -49,8 +49,8 @@ elif cors_origins:
     origins_list = [o.strip() for o in cors_origins.split(",") if o.strip()]
     cors_kwargs = {"allow_origins": origins_list}
 else:
-    # Default regex matches http://localhost:3000, http://127.0.0.1:3000 and any 100.x.x.x tailscale IPs on port 3000
-    default_regex = frontend_origin_regex or r"https?://(?:localhost|127\.0\.0\.1|100(?:\.\d{1,3}){3})(?::\d+)?"
+    # Default regex matches http://localhost:3000, http://127.0.0.1:3000, any 100.x.x.x tailscale IPs, and any IP on port 3000
+    default_regex = frontend_origin_regex or r"https?://(?:localhost|127\.0\.0\.1|100(?:\.\d{1,3}){3}|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})(?::\d+)?"
     cors_kwargs = {"allow_origin_regex": default_regex}
 
 cors_kwargs.update({

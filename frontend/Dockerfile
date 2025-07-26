@@ -11,6 +11,9 @@ RUN npm ci
 # Copy source code
 COPY . .
 
+# Generate config.js with the correct API URL
+RUN echo "window.HEALTHUP_CONFIG = { API_URL: '${VITE_API_URL:-http://localhost:8000}' };" > public/config.js
+
 # Build the application with error checking
 RUN npm run build || (echo "Build failed! Check for TypeScript errors." && exit 1)
 
