@@ -326,7 +326,7 @@ setup_database() {
     
     # Run database migrations
     log "Running database migrations..."
-    if docker compose exec -T backend alembic upgrade head; then
+    if docker compose exec -T backend sh -c "cd /app && alembic upgrade head"; then
         success "Database migrations completed successfully"
     else
         error "Database migrations failed"
