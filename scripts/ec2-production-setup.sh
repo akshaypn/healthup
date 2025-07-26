@@ -44,8 +44,6 @@ if [ -n "$MANUAL_EC2_IP" ]; then
     log "Using manually specified IP: $EC2_IP"
 fi
 
-    fi
-}
 # Function to get EC2 instance metadata
 get_ec2_ip() {
     log "Detecting EC2 public IP address..."
