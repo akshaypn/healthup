@@ -300,6 +300,30 @@ setup_database() {
         return 1
     fi
     
+    # Start backend service temporarily for migrations
+    log "Starting backend service for migrations..."
+    docker compose up -d backend
+    
+    # Wait for backend to be ready
+    log "Waiting for backend service to be ready..."
+    local backend_attempts=30
+    local backend_attempt=1
+    
+    while [ $backend_attempt -le $backend_attempts ]; do
+        if docker compose exec -T backend python -c "import os; print('Backend ready')" >/dev/null 2>&1; then
+            success "Backend service is ready"
+            break
+        fi
+        log "Waiting for backend service... (attempt $backend_attempt/$backend_attempts)"
+        sleep 5
+        ((backend_attempt++))
+    done
+    
+    if [ $backend_attempt -gt $backend_attempts ]; then
+        error "Backend service failed to start within expected time"
+        return 1
+    fi
+    
     # Run database migrations
     log "Running database migrations..."
     if docker compose exec -T backend alembic upgrade head; then
@@ -339,6 +363,10 @@ except Exception as e:
     else
         warning "Default admin user setup failed - you may need to create it manually"
     fi
+    
+    # Stop backend service (it will be restarted later with all services)
+    log "Stopping backend service (will be restarted with all services)..."
+    docker compose stop backend
 }
 
 # Function to start services
