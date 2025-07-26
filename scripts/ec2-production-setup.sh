@@ -230,13 +230,19 @@ update_docker_compose() {
     # Create backup
     cp docker-compose.yml docker-compose.yml.backup.$(date +%Y%m%d_%H%M%S)
     
-    # Export EC2_IP for docker-compose to use
+    # Set environment variables for docker-compose
     export EC2_IP="$EC2_IP"
+    export FRONTEND_ORIGINS="http://$EC2_IP:3000"
+    export VITE_API_URL="http://$EC2_IP:8000"
     
-    # Update .env file to include EC2_IP
+    # Update .env file to include all necessary variables
     echo "EC2_IP=$EC2_IP" >> .env
+    echo "FRONTEND_ORIGINS=http://$EC2_IP:3000" >> .env
+    echo "VITE_API_URL=http://$EC2_IP:8000" >> .env
     
     log "Set EC2_IP=$EC2_IP for docker-compose"
+    log "Set FRONTEND_ORIGINS=http://$EC2_IP:3000 for CORS"
+    log "Set VITE_API_URL=http://$EC2_IP:8000 for frontend"
     success "Docker Compose configuration updated"
 }
 
@@ -270,13 +276,22 @@ check_ports() {
 start_services() {
     log "Starting HealthUp services..."
     
-    # Export EC2_IP for docker-compose
+    # Export all necessary environment variables for docker-compose
     export EC2_IP="$EC2_IP"
+    export FRONTEND_ORIGINS="http://$EC2_IP:3000"
+    export VITE_API_URL="http://$EC2_IP:8000"
     log "Using EC2_IP=$EC2_IP for services"
+    log "Using FRONTEND_ORIGINS=http://$EC2_IP:3000 for CORS"
+    log "Using VITE_API_URL=http://$EC2_IP:8000 for frontend"
     
     # Stop any existing services
     log "Stopping existing services..."
     docker compose down --remove-orphans || true
+    
+    # Remove existing frontend build to force rebuild with new API URL
+    log "Removing existing frontend build to force rebuild..."
+    docker compose rm -f frontend || true
+    docker rmi healthup-frontend:latest || true
     
     # Build and start services
     log "Building and starting services..."
@@ -291,6 +306,25 @@ start_services() {
     docker compose ps
     
     success "Services started successfully"
+    
+    # Verify environment variables in running containers
+    log "Verifying environment variables in containers..."
+    
+    # Check backend CORS configuration
+    local backend_cors=$(docker compose exec -T backend env | grep FRONTEND_ORIGINS || echo "NOT_FOUND")
+    if echo "$backend_cors" | grep -q "$EC2_IP"; then
+        success "Backend CORS configuration is correct"
+    else
+        warning "Backend CORS configuration may be incorrect: $backend_cors"
+    fi
+    
+    # Check frontend API URL
+    local frontend_api=$(docker compose exec -T frontend env | grep VITE_API_URL || echo "NOT_FOUND")
+    if echo "$frontend_api" | grep -q "$EC2_IP"; then
+        success "Frontend API URL configuration is correct"
+    else
+        warning "Frontend API URL configuration may be incorrect: $frontend_api"
+    fi
 }
 
 # Function to run comprehensive tests
@@ -331,6 +365,15 @@ run_tests() {
         success "Frontend is responding"
     else
         error "Frontend is not responding"
+    fi
+    
+    # Test CORS configuration
+    log "Testing CORS configuration..."
+    local cors_response=$(curl -s -H "Origin: http://$EC2_IP:3000" -H "Access-Control-Request-Method: GET" -H "Access-Control-Request-Headers: X-Requested-With" -X OPTIONS http://localhost:8000/ -w "%{http_code}")
+    if echo "$cors_response" | grep -q "200"; then
+        success "CORS preflight request successful"
+    else
+        warning "CORS preflight request failed - this may cause frontend issues"
     fi
     
     # Test database connectivity
