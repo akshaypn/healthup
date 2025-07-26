@@ -272,6 +272,75 @@ check_ports() {
     fi
 }
 
+# Function to setup database and run migrations
+setup_database() {
+    log "Setting up database and running migrations..."
+    
+    # Start only the database and Redis services first
+    log "Starting database and Redis services..."
+    docker compose up -d postgres redis
+    
+    # Wait for database to be ready
+    log "Waiting for database to be ready..."
+    local max_attempts=30
+    local attempt=1
+    
+    while [ $attempt -le $max_attempts ]; do
+        if docker compose exec -T postgres pg_isready -U healthup >/dev/null 2>&1; then
+            success "Database is ready"
+            break
+        fi
+        log "Waiting for database... (attempt $attempt/$max_attempts)"
+        sleep 5
+        ((attempt++))
+    done
+    
+    if [ $attempt -gt $max_attempts ]; then
+        error "Database failed to start within expected time"
+        return 1
+    fi
+    
+    # Run database migrations
+    log "Running database migrations..."
+    if docker compose exec -T backend alembic upgrade head; then
+        success "Database migrations completed successfully"
+    else
+        error "Database migrations failed"
+        return 1
+    fi
+    
+    # Create default admin user
+    log "Creating default admin user..."
+    if docker compose exec -T backend python -c "
+from app.database import get_db
+from app.crud import create_user
+from app.schemas import UserCreate
+from app import models
+from sqlalchemy.orm import Session
+
+db = next(get_db())
+try:
+    # Check if admin user already exists
+    existing_user = db.query(models.User).filter(models.User.email == 'admin@healthup.com').first()
+    if not existing_user:
+        admin_user = UserCreate(
+            email='admin@healthup.com',
+            password='123456'
+        )
+        create_user(db, admin_user)
+        print('Default admin user created successfully')
+    else:
+        print('Admin user already exists')
+except Exception as e:
+    print(f'Error creating admin user: {e}')
+    exit(1)
+"; then
+        success "Default admin user setup completed"
+    else
+        warning "Default admin user setup failed - you may need to create it manually"
+    fi
+}
+
 # Function to start services
 start_services() {
     log "Starting HealthUp services..."
@@ -284,18 +353,18 @@ start_services() {
     log "Using FRONTEND_ORIGINS=http://$EC2_IP:3000 for CORS"
     log "Using VITE_API_URL=http://$EC2_IP:8000 for frontend"
     
-    # Stop any existing services
-    log "Stopping existing services..."
-    docker compose down --remove-orphans || true
+    # Stop any existing services (except database and Redis which are already running)
+    log "Stopping existing application services..."
+    docker compose stop backend frontend worker scheduler || true
     
     # Remove existing frontend build to force rebuild with new API URL
     log "Removing existing frontend build to force rebuild..."
     docker compose rm -f frontend || true
     docker rmi healthup-frontend:latest || true
     
-    # Build and start services
-    log "Building and starting services..."
-    docker compose up -d --build
+    # Build and start application services (database and Redis are already running)
+    log "Building and starting application services..."
+    docker compose up -d --build backend frontend worker scheduler
     
     # Wait for services to be ready
     log "Waiting for services to be ready..."
@@ -613,6 +682,7 @@ main() {
     generate_secure_env
     update_docker_compose
     check_ports
+    setup_database
     start_services
     run_tests
     display_service_info
