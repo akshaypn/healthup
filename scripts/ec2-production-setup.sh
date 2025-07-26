@@ -255,7 +255,7 @@ COOKIE_SECURE=false
 COOKIE_DOMAIN=
 COOKIE_SAMESITE=lax
 
-# Frontend Configuration (will use EC2_IP from environment)
+# Frontend Configuration
 VITE_API_URL=http://$EC2_IP:8000
 FRONTEND_ORIGINS=http://$EC2_IP:3000
 
@@ -276,10 +276,14 @@ update_docker_compose() {
     # Create backup
     cp docker-compose.yml docker-compose.yml.backup.$(date +%Y%m%d_%H%M%S)
     
-    # Note: docker-compose.yml now uses EC2_IP environment variable
-    # No need to modify the file directly - it will use the EC2_IP from .env
+    # Export EC2_IP for docker-compose to use
+    export EC2_IP="$EC2_IP"
     
-    success "Docker Compose configuration updated (using EC2_IP environment variable)"
+    # Update .env file to include EC2_IP
+    echo "EC2_IP=$EC2_IP" >> .env
+    
+    log "Set EC2_IP=$EC2_IP for docker-compose"
+    success "Docker Compose configuration updated"
 }
 
 # Function to check if ports are available
@@ -311,6 +315,10 @@ check_ports() {
 # Function to start services
 start_services() {
     log "Starting HealthUp services..."
+    
+    # Export EC2_IP for docker-compose
+    export EC2_IP="$EC2_IP"
+    log "Using EC2_IP=$EC2_IP for services"
     
     # Stop any existing services
     log "Stopping existing services..."
@@ -611,11 +619,6 @@ main() {
     update_docker_compose
     check_ports
     start_services
-    
-    # Restart services to pick up new environment variables
-    log "Restarting services to apply new configuration..."
-    docker compose restart frontend backend
-    
     run_tests
     display_service_info
     
