@@ -35,34 +35,126 @@ warning() {
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 EC2_IP=""
+EC2_PRIVATE_IP=""
 EC2_PUBLIC_IP=""
+
+# Allow manual IP override via environment variables
+if [ -n "$MANUAL_EC2_IP" ]; then
+    EC2_IP="$MANUAL_EC2_IP"
+    log "Using manually specified IP: $EC2_IP"
+fi
+
+# Function to prompt user for IP selection
+prompt_ip_selection() {
+    if [ -n "$EC2_PUBLIC_IP" ] && [ -n "$EC2_PRIVATE_IP" ]; then
+        echo ""
+        echo "Detected IP addresses:"
+        echo "1. Public IP: $EC2_PUBLIC_IP (recommended for external access)"
+        echo "2. Private IP: $EC2_PRIVATE_IP (for internal/VPC access)"
+        echo "3. Enter custom IP"
+        echo ""
+        read -p "Select IP to use (1-3): " -n 1 -r
+        echo
+        
+        case $REPLY in
+            1)
+                EC2_IP="$EC2_PUBLIC_IP"
+                log "User selected public IP: $EC2_IP"
+                ;;
+            2)
+                EC2_IP="$EC2_PRIVATE_IP"
+                log "User selected private IP: $EC2_IP"
+                ;;
+            3)
+                read -p "Enter custom IP address: " custom_ip
+                if validate_ip "$custom_ip"; then
+                    EC2_IP="$custom_ip"
+                    log "User entered custom IP: $EC2_IP"
+                else
+                    error "Invalid IP address format"
+                fi
+                ;;
+            *)
+                error "Invalid selection"
+                ;;
+        esac
+    fi
+}
 
 # Function to get EC2 instance metadata
 get_ec2_ip() {
     log "Detecting EC2 instance IP addresses..."
     
-    # Try to get private IP from metadata
+    # Initialize variables
+    EC2_PRIVATE_IP=""
+    EC2_PUBLIC_IP=""
+    EC2_IP=""
+    
+    # Try to get IPs from EC2 metadata service
     if command -v curl >/dev/null 2>&1; then
-        EC2_IP=$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4 2>/dev/null || echo "")
-        EC2_PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null || echo "")
+        log "Fetching IP addresses from EC2 metadata service..."
+        EC2_PRIVATE_IP=$(curl -s --connect-timeout 5 http://169.254.169.254/latest/meta-data/local-ipv4 2>/dev/null || echo "")
+        EC2_PUBLIC_IP=$(curl -s --connect-timeout 5 http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null || echo "")
+        
+        if [ -n "$EC2_PRIVATE_IP" ]; then
+            log "Detected private IP: $EC2_PRIVATE_IP"
+        fi
+        
+        if [ -n "$EC2_PUBLIC_IP" ]; then
+            log "Detected public IP: $EC2_PUBLIC_IP"
+        fi
     fi
     
     # Fallback to hostname if metadata not available
-    if [ -z "$EC2_IP" ]; then
-        EC2_IP=$(hostname -I | awk '{print $1}' | head -1)
+    if [ -z "$EC2_PRIVATE_IP" ]; then
+        EC2_PRIVATE_IP=$(hostname -I | awk '{print $1}' | head -1)
+        log "Using hostname fallback for private IP: $EC2_PRIVATE_IP"
     fi
     
-    # Use public IP if available, otherwise use private IP
-    if [ -n "$EC2_PUBLIC_IP" ]; then
+    # Priority: Public IP > Private IP > Fallback
+    if [ -n "$EC2_PUBLIC_IP" ] && validate_ip "$EC2_PUBLIC_IP"; then
         EC2_IP="$EC2_PUBLIC_IP"
-        log "Using public IP: $EC2_IP"
+        log "Using public IP for external access: $EC2_IP"
+    elif [ -n "$EC2_PRIVATE_IP" ] && validate_ip "$EC2_PRIVATE_IP"; then
+        EC2_IP="$EC2_PRIVATE_IP"
+        log "Using private IP (no public IP available): $EC2_IP"
     else
-        log "Using private IP: $EC2_IP"
+        error "Could not determine valid EC2 IP address"
     fi
     
-    if [ -z "$EC2_IP" ]; then
-        error "Could not determine EC2 IP address"
+    # Store both IPs for reference
+    export EC2_PRIVATE_IP="$EC2_PRIVATE_IP"
+    export EC2_PUBLIC_IP="$EC2_PUBLIC_IP"
+    export EC2_IP="$EC2_IP"
+    
+    log "Final IP configuration:"
+    log "  - Private IP: $EC2_PRIVATE_IP"
+    log "  - Public IP: $EC2_PUBLIC_IP"
+    log "  - Selected IP: $EC2_IP"
+}
+
+# Function to validate IP address
+validate_ip() {
+    local ip="$1"
+    
+    # Check if IP is not empty
+    if [ -z "$ip" ]; then
+        return 1
     fi
+    
+    # Basic IP format validation (IPv4)
+    if [[ $ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+        # Check each octet
+        IFS='.' read -ra OCTETS <<< "$ip"
+        for octet in "${OCTETS[@]}"; do
+            if [ "$octet" -lt 0 ] || [ "$octet" -gt 255 ]; then
+                return 1
+            fi
+        done
+        return 0
+    fi
+    
+    return 1
 }
 
 # Function to check prerequisites
@@ -94,6 +186,34 @@ check_prerequisites() {
     success "Prerequisites check passed"
 }
 
+# Function to test IP connectivity
+test_ip_connectivity() {
+    local ip="$1"
+    local port="$2"
+    
+    log "Testing connectivity to $ip:$port..."
+    
+    # Test if port is reachable
+    if command -v nc >/dev/null 2>&1; then
+        if nc -z -w5 "$ip" "$port" 2>/dev/null; then
+            log "✓ Port $port is reachable on $ip"
+            return 0
+        else
+            log "✗ Port $port is not reachable on $ip"
+            return 1
+        fi
+    else
+        # Fallback to curl if netcat not available
+        if curl -s --connect-timeout 5 "http://$ip:$port" >/dev/null 2>&1; then
+            log "✓ Port $port is reachable on $ip"
+            return 0
+        else
+            log "✗ Port $port is not reachable on $ip"
+            return 1
+        fi
+    fi
+}
+
 # Function to generate secure environment variables
 generate_secure_env() {
     log "Generating secure environment variables..."
@@ -116,6 +236,7 @@ generate_secure_env() {
 
 # EC2 Configuration
 EC2_IP=$EC2_IP
+EC2_PRIVATE_IP=$EC2_PRIVATE_IP
 EC2_PUBLIC_IP=$EC2_PUBLIC_IP
 
 # Database Configuration
@@ -306,28 +427,46 @@ run_tests() {
 display_service_info() {
     log "HealthUp Services Information"
     echo "=================================="
-    echo "EC2 IP Address: $EC2_IP"
-    echo "Backend API: http://$EC2_IP:8000"
-    echo "Frontend PWA: http://$EC2_IP:3000"
-    echo "Database: localhost:5433"
-    echo "Redis: localhost:6380"
+    echo "IP Configuration:"
+    echo "  - Selected IP: $EC2_IP"
+    echo "  - Private IP: $EC2_PRIVATE_IP"
+    echo "  - Public IP: $EC2_PUBLIC_IP"
+    echo ""
+    echo "Service URLs:"
+    echo "  - Backend API: http://$EC2_IP:8000"
+    echo "  - Frontend PWA: http://$EC2_IP:3000"
+    echo "  - Database: localhost:5433"
+    echo "  - Redis: localhost:6380"
     echo ""
     echo "Service Status:"
     docker compose ps
     echo ""
     echo "Environment Variables:"
-    echo "SECRET_KEY: ${SECRET_KEY:0:10}..."
-    echo "AMAZFIT_ENCRYPTION_KEY: ${AMAZFIT_ENCRYPTION_KEY:0:10}..."
-    echo "OPENAI_API_KEY: ${OPENAI_API_KEY:+SET}"
-    echo "GEMINI_API_KEY: ${GEMINI_API_KEY:+SET}"
+    echo "  - SECRET_KEY: ${SECRET_KEY:0:10}..."
+    echo "  - AMAZFIT_ENCRYPTION_KEY: ${AMAZFIT_ENCRYPTION_KEY:0:10}..."
+    echo "  - OPENAI_API_KEY: ${OPENAI_API_KEY:+SET}"
+    echo "  - GEMINI_API_KEY: ${GEMINI_API_KEY:+SET}"
+    echo ""
+    echo "Connectivity Test:"
+    if test_ip_connectivity "$EC2_IP" 8000; then
+        echo "  ✓ Backend API is reachable"
+    else
+        echo "  ✗ Backend API is not reachable"
+    fi
+    
+    if test_ip_connectivity "$EC2_IP" 3000; then
+        echo "  ✓ Frontend is reachable"
+    else
+        echo "  ✗ Frontend is not reachable"
+    fi
     echo ""
     echo "Logs:"
-    echo "Backend: docker compose logs backend"
-    echo "Frontend: docker compose logs frontend"
-    echo "Database: docker compose logs postgres"
-    echo "Redis: docker compose logs redis"
-    echo "Worker: docker compose logs worker"
-    echo "Scheduler: docker compose logs scheduler"
+    echo "  - Backend: docker compose logs backend"
+    echo "  - Frontend: docker compose logs frontend"
+    echo "  - Database: docker compose logs postgres"
+    echo "  - Redis: docker compose logs redis"
+    echo "  - Worker: docker compose logs worker"
+    echo "  - Scheduler: docker compose logs scheduler"
 }
 
 # Function to create systemd service for auto-start
@@ -464,7 +603,13 @@ main() {
     
     # Execute setup steps
     check_prerequisites
-    get_ec2_ip
+    
+    # Only detect IP if not manually specified
+    if [ -z "$EC2_IP" ]; then
+        get_ec2_ip
+        prompt_ip_selection
+    fi
+    
     generate_secure_env
     update_docker_compose
     check_ports
