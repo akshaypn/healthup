@@ -2,6 +2,44 @@
 
 A comprehensive personal health tracking application with AI-powered insights, built as a Progressive Web App (PWA) with a modern tech stack.
 
+---
+
+## 📁 Project Structure
+
+```
+healthup/
+├── backend/                 # FastAPI backend application
+├── frontend/                # React PWA frontend
+├── docs/                    # All documentation and guides
+│   ├── README.md            # Documentation index
+│   ├── DEPLOYMENT_SUMMARY.md
+│   ├── EC2_DEPLOYMENT_GUIDE.md
+│   ├── TAILSCALE_DEPLOYMENT_GUIDE.md
+│   ├── AI_FOOD_LOGGING_GUIDE.md
+│   └── ...                  # Other documentation files
+├── scripts/                 # Deployment, setup, and utility scripts
+│   ├── README.md            # Scripts index
+│   ├── ec2-production-setup.sh
+│   ├── deploy-ec2.sh
+│   ├── deploy-tailscale.sh
+│   └── ...                  # Other scripts
+├── tests/                   # All test files and test documentation
+│   ├── README.md            # Test suite documentation
+│   ├── test_comprehensive_ai_fixes.py
+│   ├── test_security_bugs.py
+│   └── ...                  # Other test files
+├── docker-compose.yml       # Docker services configuration
+├── .env                     # Environment variables (not in git)
+├── env.production.example   # Example environment file
+└── README.md                # This file
+```
+
+- **docs/**: All documentation, guides, and architecture/feature explanations. See `docs/README.md` for a full index.
+- **scripts/**: All deployment, setup, and utility scripts. See `scripts/README.md` for usage and details.
+- **tests/**: All test files (Python, shell) and test documentation. See `tests/README.md` for how to run tests and what each test does.
+
+---
+
 ## 🎯 Product Goals
 
 - **One-stop personal health HQ** - Log weight, meals, HR-monitor traces
