@@ -46,7 +46,8 @@ fi
 
 # Function to prompt user for IP selection
 prompt_ip_selection() {
-    if [ -n "$EC2_PUBLIC_IP" ] && [ -n "$EC2_PRIVATE_IP" ]; then
+    # Only prompt if we have multiple IP options
+    if [ -n "$EC2_PUBLIC_IP" ] && [ -n "$EC2_PRIVATE_IP" ] && [ "$EC2_PUBLIC_IP" != "$EC2_PRIVATE_IP" ]; then
         echo ""
         echo "Detected IP addresses:"
         echo "1. Public IP: $EC2_PUBLIC_IP (recommended for external access)"
@@ -78,6 +79,16 @@ prompt_ip_selection() {
                 error "Invalid selection"
                 ;;
         esac
+    elif [ -n "$EC2_PUBLIC_IP" ]; then
+        # Only public IP available
+        EC2_IP="$EC2_PUBLIC_IP"
+        log "Using detected public IP: $EC2_IP"
+    elif [ -n "$EC2_PRIVATE_IP" ]; then
+        # Only private IP available
+        EC2_IP="$EC2_PRIVATE_IP"
+        log "Using detected private IP: $EC2_IP"
+    else
+        error "No valid IP addresses detected"
     fi
 }
 
@@ -90,25 +101,41 @@ get_ec2_ip() {
     EC2_PUBLIC_IP=""
     EC2_IP=""
     
-    # Try to get IPs from EC2 metadata service
+    # Get private IP from metadata service or hostname
     if command -v curl >/dev/null 2>&1; then
-        log "Fetching IP addresses from EC2 metadata service..."
         EC2_PRIVATE_IP=$(curl -s --connect-timeout 5 http://169.254.169.254/latest/meta-data/local-ipv4 2>/dev/null || echo "")
-        EC2_PUBLIC_IP=$(curl -s --connect-timeout 5 http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null || echo "")
-        
-        if [ -n "$EC2_PRIVATE_IP" ]; then
-            log "Detected private IP: $EC2_PRIVATE_IP"
-        fi
-        
-        if [ -n "$EC2_PUBLIC_IP" ]; then
-            log "Detected public IP: $EC2_PUBLIC_IP"
-        fi
     fi
     
     # Fallback to hostname if metadata not available
     if [ -z "$EC2_PRIVATE_IP" ]; then
         EC2_PRIVATE_IP=$(hostname -I | awk '{print $1}' | head -1)
         log "Using hostname fallback for private IP: $EC2_PRIVATE_IP"
+    fi
+    
+    # Get public IP using the same robust method as quick setup
+    log "Detecting public IP address..."
+    
+    # Try AWS metadata service first
+    if curl -s http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+        EC2_PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null)
+        log "Found public IP via AWS metadata: $EC2_PUBLIC_IP"
+    # Try external service as fallback
+    elif curl -s http://checkip.amazonaws.com/ 2>/dev/null | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+        EC2_PUBLIC_IP=$(curl -s http://checkip.amazonaws.com/ 2>/dev/null)
+        log "Found public IP via external service: $EC2_PUBLIC_IP"
+    else
+        log "Could not automatically detect public IP"
+        echo ""
+        echo "⚠️  Could not automatically detect public IP"
+        echo "   Please enter your EC2 public IP manually:"
+        read -p "   EC2 Public IP: " EC2_PUBLIC_IP
+        
+        if [ -n "$EC2_PUBLIC_IP" ] && validate_ip "$EC2_PUBLIC_IP"; then
+            log "Using manually entered public IP: $EC2_PUBLIC_IP"
+        else
+            log "Invalid or empty public IP entered, will use private IP"
+            EC2_PUBLIC_IP=""
+        fi
     fi
     
     # Priority: Public IP > Private IP > Fallback
@@ -118,6 +145,7 @@ get_ec2_ip() {
     elif [ -n "$EC2_PRIVATE_IP" ] && validate_ip "$EC2_PRIVATE_IP"; then
         EC2_IP="$EC2_PRIVATE_IP"
         log "Using private IP (no public IP available): $EC2_IP"
+        log "Note: If this is a private subnet, you may need to use a load balancer or VPN for external access"
     else
         error "Could not determine valid EC2 IP address"
     fi
