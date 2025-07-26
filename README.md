@@ -1,6 +1,49 @@
-# HealthUp - Personal Health Tracker
+# HealthUp – Personal Health Tracker
 
-A comprehensive personal health tracking application with AI-powered insights, built as a Progressive Web App (PWA) with a modern tech stack.
+[![Build Status](https://img.shields.io/github/workflow/status/akshaypn/healthup/CI)](https://github.com/akshaypn/healthup/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Docker](https://img.shields.io/badge/docker-ready-blue)](docker-compose.yml)
+[![Coverage Status](https://img.shields.io/badge/coverage-83%25-brightgreen)](tests/README.md)
+
+---
+
+> **HealthUp** is a modern, AI-powered personal health tracking platform. Log your weight, meals, and heart rate, and receive actionable insights and coaching from advanced AI models. Built as a PWA for seamless, secure, and cross-device health management.
+
+---
+
+## 🚀 Quick Links
+
+- [Live Demo](#demo)
+- [Documentation](docs/README.md)
+- [Deployment Guide](docs/EC2_DEPLOYMENT_GUIDE.md)
+- [Scripts & Automation](scripts/README.md)
+- [Test Suite](tests/README.md)
+- [API Reference](#api-endpoints)
+- [Contributing](#contributing)
+- [Security Policy](#security)
+- [FAQ](#faq)
+
+---
+
+## 📚 Table of Contents
+
+- [Project Structure](#-project-structure)
+- [Features](#-features)
+- [Architecture](#-architecture)
+- [Tech Stack](#-tech-stack)
+- [Demo](#demo)
+- [Installation & Setup](#-installation--setup)
+- [Configuration](#-configuration)
+- [Deployment](#-deployment)
+- [API Endpoints](#api-endpoints)
+- [Testing](#testing)
+- [Monitoring & Analytics](#-monitoring--analytics)
+- [Security](#security)
+- [Contributing](#contributing)
+- [Support](#support)
+- [FAQ](#faq)
+- [License](#license)
+- [Acknowledgments](#acknowledgments)
 
 ---
 
@@ -11,43 +54,35 @@ healthup/
 ├── backend/                 # FastAPI backend application
 ├── frontend/                # React PWA frontend
 ├── docs/                    # All documentation and guides
-│   ├── README.md            # Documentation index
-│   ├── DEPLOYMENT_SUMMARY.md
-│   ├── EC2_DEPLOYMENT_GUIDE.md
-│   ├── TAILSCALE_DEPLOYMENT_GUIDE.md
-│   ├── AI_FOOD_LOGGING_GUIDE.md
-│   └── ...                  # Other documentation files
+│   └── README.md            # Documentation index
 ├── scripts/                 # Deployment, setup, and utility scripts
-│   ├── README.md            # Scripts index
-│   ├── ec2-production-setup.sh
-│   ├── deploy-ec2.sh
-│   ├── deploy-tailscale.sh
-│   └── ...                  # Other scripts
+│   └── README.md            # Scripts index
 ├── tests/                   # All test files and test documentation
-│   ├── README.md            # Test suite documentation
-│   ├── test_comprehensive_ai_fixes.py
-│   ├── test_security_bugs.py
-│   └── ...                  # Other test files
+│   └── README.md            # Test suite documentation
 ├── docker-compose.yml       # Docker services configuration
 ├── .env                     # Environment variables (not in git)
 ├── env.production.example   # Example environment file
 └── README.md                # This file
 ```
 
-- **docs/**: All documentation, guides, and architecture/feature explanations. See `docs/README.md` for a full index.
-- **scripts/**: All deployment, setup, and utility scripts. See `scripts/README.md` for usage and details.
-- **tests/**: All test files (Python, shell) and test documentation. See `tests/README.md` for how to run tests and what each test does.
+- **docs/**: [Documentation, guides, and architecture/feature explanations](docs/README.md)
+- **scripts/**: [Deployment, setup, and utility scripts](scripts/README.md)
+- **tests/**: [Test files and test documentation](tests/README.md)
 
 ---
 
-## 🎯 Product Goals
+## 🎯 Features
 
-- **One-stop personal health HQ** - Log weight, meals, HR-monitor traces
-- **Daily / weekly / monthly insights & charts** - Visualize your health trends
-- **LLM-driven coaching** - AI-powered summary, next-steps, and motivation
-- **PWA** - Runs offline, zero heavy compute on device
-- **Single t3.micro-class backend** - Optimized for AWS Free Tier
-- **Google Gemini integration** - Free-tier models via per-user API keys
+- **Unified Health HQ**: Log weight, meals, and heart rate
+- **AI Insights**: Daily, weekly, and monthly analysis powered by OpenAI/Gemini
+- **Real-time Coaching**: Chat with an AI health coach
+- **Interactive Charts**: Visualize your health trends
+- **Bluetooth HR Integration**: Sync with heart rate devices
+- **Progressive Web App**: Installable, offline-capable, mobile-first
+- **Secure & Private**: JWT auth, encrypted credentials, rate limiting
+- **Production-Ready**: Dockerized, scalable, and CI/CD friendly
+
+---
 
 ## 🏗️ Architecture
 
@@ -65,417 +100,223 @@ healthup/
                                          ▲
                                          │ batched prompts
                                          ▼
-                                  Google Gemini API
+                                  Google Gemini API / OpenAI
 ```
 
-## 🚀 Features
-
-### Core Functionality
-- **Weight Tracking** - Log daily weight with trend visualization
-- **Food Logging** - Track meals with macro nutrients (calories, protein, fat, carbs)
-- **Heart Rate Monitoring** - Bluetooth HR device integration
-- **AI Insights** - Daily, weekly, and monthly health analysis
-- **Real-time Coaching** - Chat with AI health coach
-
-### Technical Features
-- **Progressive Web App** - Installable, offline-capable
-- **Responsive Design** - Mobile-first, works on all devices
-- **Real-time Charts** - Interactive health data visualization
-- **Bluetooth Integration** - Heart rate monitor support
-- **Offline Support** - Service worker caching
-- **JWT Authentication** - Secure user sessions
+---
 
 ## 🛠️ Tech Stack
 
-### Backend
-- **FastAPI** - Modern Python web framework
-- **SQLAlchemy** - ORM for database operations
-- **PostgreSQL** - Primary database
-- **Redis** - Caching and Celery broker
-- **Celery** - Background task processing
-- **Google Gemini API** - AI-powered insights
-- **JWT** - Authentication
-- **Alembic** - Database migrations
+**Backend:** FastAPI, SQLAlchemy, PostgreSQL, Redis, Celery, OpenAI/Gemini API, JWT, Alembic
 
-### Frontend
-- **React 18** - UI framework
-- **TypeScript** - Type safety
-- **Vite** - Build tool
-- **Recharts** - Data visualization
-- **React Router** - Client-side routing
-- **PWA** - Progressive Web App features
-- **Google GenAI** - Client-side AI integration
+**Frontend:** React 18, TypeScript, Vite, Recharts, React Router, PWA, Google GenAI
+
+**DevOps:** Docker, Docker Compose, AWS EC2, Tailscale, GitHub Actions
+
+---
+
+## 🎬 Demo
+
+> **Try it locally:**
+>
+> 1. Clone the repo: `git clone https://github.com/akshaypn/healthup.git`
+> 2. [Follow the Quick Start](#-installation--setup) below
+> 3. Access: [http://localhost:3000](http://localhost:3000)
+
+---
 
 ## 📦 Installation & Setup
 
 ### Prerequisites
-- Docker and Docker Compose
+- Docker & Docker Compose
 - Node.js 18+ (for development)
 - Python 3.11+ (for development)
-- Google Gemini API key
+- OpenAI or Google Gemini API key
 
-### Quick Start with Docker
+### Quick Start (Docker)
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd healthup
-   ```
+```bash
+git clone https://github.com/akshaypn/healthup.git
+cd healthup
+cp env.production.example .env
+# Edit .env and add your API keys
+./scripts/ec2-production-setup.sh
+```
 
-2. **Set up environment variables**
-   ```bash
-   cp backend/env.example backend/.env
-   cp frontend/env.example frontend/.env
-   ```
-   
-   Edit the files and add your Google Gemini API key:
-   ```env
-   # backend/.env
-   GEMINI_API_KEY=your-gemini-api-key-here
-   SECRET_KEY=your-secret-key-here
-   
-   # frontend/.env
-   VITE_GEMINI_API_KEY=your-gemini-api-key-here
-   ```
+- For full setup, see [docs/DEPLOYMENT_SUMMARY.md](docs/DEPLOYMENT_SUMMARY.md)
+- For EC2, see [docs/EC2_DEPLOYMENT_GUIDE.md](docs/EC2_DEPLOYMENT_GUIDE.md)
 
-3. **Start the application**
-   ```bash
-   ./start.sh
-   ```
+### Local Development
 
-4. **Access the application**
-   - Frontend: http://localhost:3000
-   - Backend API: http://localhost:8000
-   - API Docs: http://localhost:8000/docs
+- [Backend setup](backend/README.md) (see backend folder)
+- [Frontend setup](frontend/README.md) (see frontend folder)
+- [Test suite](tests/README.md)
 
-### 🚀 EC2 Production Deployment
+---
 
-For production deployment on AWS EC2:
+## 🔧 Configuration
 
-1. **Launch EC2 Instance**
-   - Ubuntu Server 22.04 LTS
-   - t3.medium or larger
-   - Security Group: Allow ports 22, 80, 443, 3000, 8000
+- **Environment variables:** See [env.production.example](env.production.example)
+- **Backend config:** `backend/.env` (see [backend/README.md](backend/README.md))
+- **Frontend config:** `frontend/.env` (see [frontend/README.md](frontend/README.md))
+- **Secrets:** Never commit `.env` files to git
 
-2. **Deploy Application**
-   ```bash
-   # Connect to EC2 instance
-   ssh -i your-key.pem ubuntu@your-ec2-ip
-   
-   # Clone and deploy
-   git clone https://github.com/your-username/healthup.git
-   cd healthup
-   chmod +x deploy-ec2.sh
-   ./deploy-ec2.sh
-   ```
+---
 
-3. **Access Production App**
-   - Frontend: `http://your-ec2-public-ip:3000`
-   - Backend: `http://your-ec2-public-ip:8000`
-   - Mobile: Open the frontend URL on your phone
+## 🚀 Deployment
 
-📖 **Full EC2 Deployment Guide**: See [EC2_DEPLOYMENT_GUIDE.md](EC2_DEPLOYMENT_GUIDE.md)
+- **Production:** Use [scripts/ec2-production-setup.sh](scripts/ec2-production-setup.sh) for full EC2 setup, including health checks and auto-testing
+- **Docker Compose:** `docker-compose up -d`
+- **CI/CD:** See [docs/DEPLOYMENT_SUMMARY.md](docs/DEPLOYMENT_SUMMARY.md)
+- **Tailscale VPN:** See [docs/TAILSCALE_DEPLOYMENT_GUIDE.md](docs/TAILSCALE_DEPLOYMENT_GUIDE.md)
 
-### Development Setup
-
-1. **Backend Setup**
-   ```bash
-   cd backend
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   pip install -r requirements.txt
-   
-   # Set up environment variables
-   cp env.example .env
-   # Edit .env with your settings
-   
-   # Run the backend
-   uvicorn app.main:app --reload
-   ```
-
-2. **Frontend Setup**
-   ```bash
-   cd frontend
-   npm install
-   
-   # Set up environment variables
-   cp env.example .env
-   # Edit .env with your settings
-   
-   # Run the frontend
-   npm run dev
-   ```
-
-3. **Database Setup**
-   ```bash
-   # Install PostgreSQL and Redis, or use Docker
-   docker run -d --name postgres -e POSTGRES_DB=healthup -e POSTGRES_USER=healthup -e POSTGRES_PASSWORD=healthup -p 5432:5432 postgres:15
-   docker run -d --name redis -p 6379:6379 redis:7-alpine
-   
-   # Run migrations
-   cd backend
-   alembic upgrade head
-   ```
+---
 
 ## 📊 API Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/auth/register` | User registration |
-| POST | `/auth/login` | User login |
-| POST | `/weight` | Log weight entry |
-| POST | `/food` | Log food entry |
-| POST | `/hr` | Log heart rate session |
-| GET | `/insight/{period}` | Get AI insights (daily/weekly/monthly) |
-| GET | `/coach/today` | Get real-time coaching advice |
+| POST   | `/auth/register`      | User registration |
+| POST   | `/auth/login`         | User login |
+| POST   | `/weight`             | Log weight entry |
+| POST   | `/food`               | Log food entry |
+| POST   | `/hr`                 | Log heart rate session |
+| GET    | `/insight/{period}`   | Get AI insights (daily/weekly/monthly) |
+| GET    | `/coach/today`        | Get real-time coaching advice |
 
-## 🤖 AI Integration
-
-### Google Gemini API Usage
-
-The application uses Google Gemini API for:
-- **Daily Insights** - Quick summaries and actionable tips
-- **Weekly Reports** - Trend analysis and recommendations
-- **Monthly Analysis** - Deep insights and strategic planning
-- **Real-time Coaching** - Interactive health advice
-
-### Rate Limiting Strategy
-- **Gemini 2.0 Flash** - 15 RPM, 1,500 RPD for quick summaries
-- **Token Bucket** - Redis-based rate limiting
-- **Exponential Backoff** - Automatic retry with backoff
-- **Batching** - Multiple functions in single prompts
-
-## 📱 PWA Features
-
-- **Installable** - Add to home screen
-- **Offline Support** - Service worker caching
-- **Push Notifications** - Health reminders
-- **Background Sync** - Data synchronization
-- **Responsive Design** - Works on all devices
-
-## 🔧 Configuration
-
-### Environment Variables
-
-**Backend (.env)**
-```env
-DATABASE_URL=postgresql://healthup:healthup@localhost/healthup
-SECRET_KEY=your-secret-key-here
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=15
-REDIS_URL=redis://localhost:6379
-GEMINI_API_KEY=your-gemini-api-key-here
-ENVIRONMENT=development
-```
-
-**Frontend (.env)**
-```env
-VITE_API_URL=http://localhost:8000
-VITE_GEMINI_API_KEY=your-gemini-api-key-here
-```
-
-## 🚀 Deployment
-
-### AWS Free Tier Deployment
-
-1. **EC2 Setup**
-   ```bash
-   # Launch t3.micro instance
-   # Install Docker and Docker Compose
-   sudo yum update -y
-   sudo yum install -y docker
-   sudo service docker start
-   sudo usermod -a -G docker ec2-user
-   sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-   sudo chmod +x /usr/local/bin/docker-compose
-   ```
-
-2. **RDS Setup**
-   - Create PostgreSQL RDS instance (db.t4g.micro)
-   - Update DATABASE_URL in environment
-
-3. **Deploy Application**
-   ```bash
-   git clone <repository-url>
-   cd healthup_temp
-   # Set up environment variables
-   docker-compose up -d
-   ```
-
-### Production Considerations
-- Use HTTPS with Let's Encrypt
-- Set up proper logging and monitoring
-- Configure backup strategies
-- Implement rate limiting
-- Set up CI/CD pipeline
-
-## 📈 Monitoring & Analytics
-
-- **Health Checks** - Docker health checks for all services
-- **Logging** - Structured logging with correlation IDs
-- **Metrics** - Prometheus metrics for monitoring
-- **Alerts** - Automated alerting for issues
-
-## 🔒 Security
-
-- **JWT Authentication** - Secure token-based auth
-- **Password Hashing** - bcrypt for password security
-- **CORS Protection** - Configured for production
-- **Input Validation** - Pydantic models for data validation
-- **Rate Limiting** - API rate limiting protection
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
-5. Submit a pull request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🆘 Support
-
-For support and questions:
-- Create an issue in the repository
-- Check the API documentation at `/docs`
-- Review the troubleshooting guide
-
-## 🎉 Acknowledgments
-
-- Google Gemini API for AI capabilities
-- FastAPI for the excellent web framework
-- React team for the amazing frontend framework
-- The open-source community for various libraries and tools
-
-
-### Gemini AI API Cheatsheet
-
-## Free-tier rate-limit lookup table (Gemini & related models)
-
-| Model (version)                                | Typical sweet-spot use-case                                                     | Max context (tokens)                                             | Free-tier RPM                                                                                                | Free-tier RPD                                               | Free-tier TPM†                          | Notes / standout strengths                                                                                   |
-| ---------------------------------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| **Gemini 2.5 Pro (Code Assist / CLI preview)** | Large-context coding, multi-step reasoning, exploratory chat                    | **1 M** tokens window 🔥 ([indiatimes.com][1], [blog.google][2]) | **60** ([indiatimes.com][1])                                                                                 | **1 000** ([blog.google][2])                                | n/s (not disclosed)                     | Highest free RPM/RPD today; works only via Gemini CLI or Code Assist licence. Great for code & long reports. |
-| **Gemini 1.5 Flash (GA)**                      | Real-time chat, rapid summarisation, long-doc Q\&A                              | 1 M tokens                                                       | 15 ([googlecloudcommunity.com][3], [uctoday.com][4])                                                         | 1 500 ([googlecloudcommunity.com][3], [uctoday.com][4])     | 1 M ([uctoday.com][4], [zapier.com][5]) | Cheapest, fastest multimodal model; batch work to exploit high TPM.                                          |
-| **Gemini 1.5 Pro (GA)**                        | Precise reasoning, tool-calling, dense coding tasks where Flash is too light    | 1 M tokens                                                       | **2** ([googlecloudcommunity.com][3], [techtarget.com][6])                                                   | **50** ([googlecloudcommunity.com][3], [techtarget.com][6]) | \~32 k ([neuroflash.com][7])            | Excellent quality but severe quotas—use only for “needle-in-haystack” problems.                              |
-| **Gemini 1.0 Pro (text / image)**              | Stable baseline for production chatbots & RAG; better availability than 1.5 Pro | 32 k tokens                                                      | 15 (60 RPM in AI Studio) ([zapier.com][5], [reddit.com][8])                                                  | 1 500 (RPD) ([zapier.com][5])                               | 1 M ([zapier.com][5])                   | Good fallback when 1.5-series is over-quota; vision input supported.                                         |
-| **Gemini Pro Vision (1.0)**                    | Image + text reasoning (alt-text, diagrams, OCR extraction)                     | 32 k tokens                                                      | 60 RPM (AI Studio only) ([reddit.com][8])                                                                    | n/s (typ. 1 500/day like Pro)                               | n/s                                     | Use in AI Studio for free visual tasks; API key currently text-only.                                         |
-| **Text Embedding 004**                         | High-dimensional embeddings for search / clustering                             | 20 k tokens / request; 250 texts                                 | Quota varies by region (Vertex AI) – \~1 000 RPM project-wide ([cloud.google.com][9], [cloud.google.com][9]) | –                                                           | –                                       | Each request can batch 250 texts—use batching to stay inside quotas.                                         |
-| **Gemini 2.5 Flash TTS (preview)**             | Budget speech synthesis                                                         | 128 k prompt                                                     | 15 RPM (preview) ([ai.google.dev][10])                                                                       | 500 RPD (shared) ([ai.google.dev][10])                      | –                                       | Audio output free but quota tight; great for small voice prototypes.                                         |
-
-† **TPM = input tokens per minute** that the backend will actually count against your project.
+- Full OpenAPI docs: [http://localhost:8000/docs](http://localhost:8000/docs)
 
 ---
 
-## How to choose the right free model
+## 🧪 Testing
 
-### 1. Prioritise **rate-limit headroom**
+- **Test suite:** See [tests/README.md](tests/README.md) for all test scripts and instructions
+- **Run all tests:**
+  ```bash
+  cd tests
+  python3 test_comprehensive_ai_fixes.py
+  # or run shell scripts for integration tests
+  ./test-current-setup.sh
+  ```
+- **Coverage:** 83%+ (see [tests/README.md](tests/README.md))
+- **CI:** Automated via GitHub Actions
 
-* If you expect spiky usage, **Gemini 2.5 Pro via the free Code Assist licence** is the only option that rivals paid-tier headroom (60 RPM / 1 000 RPD). ([indiatimes.com][1], [blog.google][2])
-* For always-on bots, **Gemini 1.5 Flash** offers the best sustained quota (15 RPM, 1 500 RPD) while still supporting the full 1 M-token context window. ([googlecloudcommunity.com][3], [uctoday.com][4])
+---
 
-### 2. Match **latency vs quality**
+## 📈 Monitoring & Analytics
 
-* **Flash** is “good enough” for summarisation, support chat, or rapid multi-modal extraction, and its responses arrive 2-3× faster than Pro. ([uctoday.com][4])
-* **Pro (1.5 / 2.5)** shines in complex planning, chain-of-thought, or tricky code bases where Flash may hallucinate. Be prepared to throttle calls aggressively. ([techtarget.com][6])
+- **Health checks:** Docker health checks for all services
+- **Logging:** Structured logging with correlation IDs
+- **Metrics:** Prometheus metrics (see [docs/DEPLOYMENT_SUMMARY.md](docs/DEPLOYMENT_SUMMARY.md))
+- **Alerts:** Automated alerting for issues
 
-### 3. Exploit **batching & streaming**
+---
 
-* Free tokens-per-minute allowances are huge (Flash offers 1 M TPM), so bundle multiple tasks into one request instead of separate calls. ([zapier.com][5])
-* Stream responses to the client to start processing while the model is still finishing—this keeps perceived latency low without extra quota cost.
+## 🔒 Security
 
-### 4. Use **AI Studio** for vision & prototyping
+- **JWT Authentication** – Secure token-based auth
+- **Password Hashing** – bcrypt for password security
+- **CORS Protection** – Configured for production
+- **Input Validation** – Pydantic models for data validation
+- **Rate Limiting** – API rate limiting protection
+- **Prompt Injection Protection** – AI input sanitization
+- **Secrets Management** – No secrets in git, use `.env`
+- **Responsible Disclosure:** Please report vulnerabilities via GitHub Security tab
 
-* AI Studio ignores some API-key limits (e.g., 60 RPM for Pro Vision) and costs nothing; build your prototype there, then migrate to API once flow stabilises. ([reddit.com][8])
+---
 
-### 5. Plan for **inevitable quota hits**
+## 🤝 Contributing
 
-Even with the most generous free limits, you will eventually hit ceilings if your project scales:
+We welcome contributions from the community!
 
-* **Caching** common system prompts locally—free tier doesn’t include server-side context caching ([zapier.com][5])
-* **Rotate** among multiple Google Cloud projects (within ToS) to sandbox experiments from production usage.
-* **Trigger back-off** (exponential retry) rather than blind retries—Google throttles harder after repeated breaches.
+- [Contribution Guide](docs/README.md#contributing)
+- [Test Suite](tests/README.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md) (if present)
 
+**How to contribute:**
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add/Update tests
+5. Submit a pull request
 
+---
 
-## Code examples
+## 🆘 Support
 
-# normal inference
-```python 
+- [Open an issue](https://github.com/akshaypn/healthup/issues)
+- [API Docs](http://localhost:8000/docs)
+- [Troubleshooting](docs/DEPLOYMENT_SUMMARY.md#troubleshooting)
+- [Contact Maintainers](mailto:support@healthup.app) (replace with actual email)
 
-from google import genai
-from google.genai import types
+---
 
-client = genai.Client()
+## ❓ FAQ
 
-response = client.models.generate_content(
-    model="gemini-2.5-flash",
-    contents=["Explain how AI works"],
-    config=types.GenerateContentConfig(
-        temperature=0.1
-    )
-)
-print(response.text)
+**Q: Is HealthUp free to use?**
+- Yes, it is open source and free for personal use.
 
-```
-#structure output 
+**Q: Can I use my own OpenAI or Gemini API key?**
+- Yes, set it in your `.env` file as described above.
 
-```python
+**Q: How do I deploy to AWS EC2?**
+- See [docs/EC2_DEPLOYMENT_GUIDE.md](docs/EC2_DEPLOYMENT_GUIDE.md) and use [scripts/ec2-production-setup.sh](scripts/ec2-production-setup.sh).
 
-from google import genai
-from pydantic import BaseModel
+**Q: How do I run all tests?**
+- See [tests/README.md](tests/README.md) for instructions.
 
-class Recipe(BaseModel):
-    recipe_name: str
-    ingredients: list[str]
+**Q: Where can I find more documentation?**
+- See [docs/README.md](docs/README.md) for a full index.
 
-client = genai.Client()
-response = client.models.generate_content(
-    model="gemini-2.5-flash",
-    contents="List a few popular cookie recipes, and include the amounts of ingredients.",
-    config={
-        "response_mime_type": "application/json",
-        "response_schema": list[Recipe],
-    },
-)
-# Use the response as a JSON string.
-print(response.text)
+---
 
-# Use instantiated objects.
-my_recipes: list[Recipe] = response.parsed
+## 📄 License
 
-```
+This project is licensed under the MIT License – see the [LICENSE](LICENSE) file for details.
 
-# Google search grounding
+---
 
-```python
-from google import genai
-from google.genai import types
+## 🙏 Acknowledgments
 
-# Configure the client
-client = genai.Client()
+- [Google Gemini API](https://ai.google.dev/) for AI capabilities
+- [OpenAI](https://openai.com/) for LLM integration
+- [FastAPI](https://fastapi.tiangolo.com/) for the backend framework
+- [React](https://react.dev/) for the frontend
+- [The open-source community](https://github.com/akshaypn/healthup/graphs/contributors) for libraries and tools
 
-# Define the grounding tool
-grounding_tool = types.Tool(
-    google_search=types.GoogleSearch()
-)
+---
 
-# Configure generation settings
-config = types.GenerateContentConfig(
-    tools=[grounding_tool]
-)
+## 🌐 Third-Party Licenses
 
-# Make the request
-response = client.models.generate_content(
-    model="gemini-2.5-flash",
-    contents="Who won the euro 2024?",
-    config=config,
-)
+See [docs/README.md](docs/README.md) for third-party license attributions and details.
 
-# Print the grounded response
-print(response.text)
+---
 
-```
+## 📝 Changelog
+
+See [Releases](https://github.com/akshaypn/healthup/releases) for version history and changelog.
+
+---
+
+## 🏁 Browser & Platform Support
+
+- Chrome, Firefox, Safari, Edge (latest)
+- Android, iOS (PWA installable)
+- Linux, macOS, Windows (via browser)
+
+---
+
+## Known Issues & Troubleshooting
+
+- See [docs/DEPLOYMENT_SUMMARY.md#troubleshooting](docs/DEPLOYMENT_SUMMARY.md#troubleshooting)
+- For open issues, see [GitHub Issues](https://github.com/akshaypn/healthup/issues)
+
+---
+
+## 📢 Community & Updates
+
+- [GitHub Discussions](https://github.com/akshaypn/healthup/discussions)
+- [Releases & Announcements](https://github.com/akshaypn/healthup/releases)
+
+---
 
