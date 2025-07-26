@@ -1,6 +1,7 @@
 #!/bin/bash
 
 # Quick test script to verify current setup
+# Run this from the project root directory
 set -e
 
 echo "Testing current HealthUp setup..."

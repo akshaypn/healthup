@@ -268,7 +268,7 @@ run_tests() {
     fi
     
     # Run comprehensive test suite if available
-    if [ -f "test_comprehensive_ai_fixes.py" ]; then
+    if [ -f "tests/test_comprehensive_ai_fixes.py" ]; then
         log "Running comprehensive AI test suite..."
         
         # Create virtual environment for testing
@@ -277,7 +277,7 @@ run_tests() {
         pip install requests psycopg2-binary PyJWT cryptography
         
         # Run tests
-        python test_comprehensive_ai_fixes.py || warning "Some tests failed - check logs for details"
+        python tests/test_comprehensive_ai_fixes.py || warning "Some tests failed - check logs for details"
         
         deactivate
         rm -rf test_env_ec2
