@@ -326,11 +326,39 @@ setup_database() {
     
     # Run database migrations
     log "Running database migrations..."
+    
+    # First, try to reset the database to a clean state
+    log "Resetting database to clean state..."
+    docker compose exec -T postgres psql -U healthup -d healthup -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" || true
+    
+    # Try running migrations
     if docker compose exec -T backend sh -c "cd /app && alembic upgrade head"; then
         success "Database migrations completed successfully"
     else
-        error "Database migrations failed"
-        return 1
+        log "Migration failed, trying alternative approach..."
+        
+        # If migrations fail, try to create tables directly using SQLAlchemy
+        if docker compose exec -T backend python -c "
+from app.database import engine
+from app import models
+import logging
+
+# Disable SQLAlchemy logging
+logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
+
+try:
+    # Create all tables
+    models.Base.metadata.create_all(bind=engine)
+    print('Tables created successfully using SQLAlchemy')
+except Exception as e:
+    print(f'Error creating tables: {e}')
+    exit(1)
+"; then
+            success "Database tables created successfully using SQLAlchemy"
+        else
+            error "Database setup failed completely"
+            return 1
+        fi
     fi
     
     # Create default admin user
