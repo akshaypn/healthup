@@ -35,7 +35,6 @@ warning() {
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 EC2_IP=""
-EC2_PRIVATE_IP=""
 EC2_PUBLIC_IP=""
 
 # Allow manual IP override via environment variables
@@ -44,93 +43,49 @@ if [ -n "$MANUAL_EC2_IP" ]; then
     log "Using manually specified IP: $EC2_IP"
 fi
 
-# Function to prompt user for IP selection
-prompt_ip_selection() {
-    if [ -n "$EC2_PUBLIC_IP" ] && [ -n "$EC2_PRIVATE_IP" ]; then
-        echo ""
-        echo "Detected IP addresses:"
-        echo "1. Public IP: $EC2_PUBLIC_IP (recommended for external access)"
-        echo "2. Private IP: $EC2_PRIVATE_IP (for internal/VPC access)"
-        echo "3. Enter custom IP"
-        echo ""
-        read -p "Select IP to use (1-3): " -n 1 -r
-        echo
-        
-        case $REPLY in
-            1)
-                EC2_IP="$EC2_PUBLIC_IP"
-                log "User selected public IP: $EC2_IP"
-                ;;
-            2)
-                EC2_IP="$EC2_PRIVATE_IP"
-                log "User selected private IP: $EC2_IP"
-                ;;
-            3)
-                read -p "Enter custom IP address: " custom_ip
-                if validate_ip "$custom_ip"; then
-                    EC2_IP="$custom_ip"
-                    log "User entered custom IP: $EC2_IP"
-                else
-                    error "Invalid IP address format"
-                fi
-                ;;
-            *)
-                error "Invalid selection"
-                ;;
-        esac
-    fi
-}
+
 
 # Function to get EC2 instance metadata
 get_ec2_ip() {
-    log "Detecting EC2 instance IP addresses..."
+    log "Detecting EC2 public IP..."
     
     # Initialize variables
-    EC2_PRIVATE_IP=""
     EC2_PUBLIC_IP=""
     EC2_IP=""
     
-    # Try to get IPs from EC2 metadata service
-    if command -v curl >/dev/null 2>&1; then
-        log "Fetching IP addresses from EC2 metadata service..."
-        EC2_PRIVATE_IP=$(curl -s --connect-timeout 5 http://169.254.169.254/latest/meta-data/local-ipv4 2>/dev/null || echo "")
-        EC2_PUBLIC_IP=$(curl -s --connect-timeout 5 http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null || echo "")
-        
-        if [ -n "$EC2_PRIVATE_IP" ]; then
-            log "Detected private IP: $EC2_PRIVATE_IP"
-        fi
-        
-        if [ -n "$EC2_PUBLIC_IP" ]; then
-            log "Detected public IP: $EC2_PUBLIC_IP"
-        fi
-    fi
-    
-    # Fallback to hostname if metadata not available
-    if [ -z "$EC2_PRIVATE_IP" ]; then
-        EC2_PRIVATE_IP=$(hostname -I | awk '{print $1}' | head -1)
-        log "Using hostname fallback for private IP: $EC2_PRIVATE_IP"
-    fi
-    
-    # Priority: Public IP > Private IP > Fallback
-    if [ -n "$EC2_PUBLIC_IP" ] && validate_ip "$EC2_PUBLIC_IP"; then
-        EC2_IP="$EC2_PUBLIC_IP"
-        log "Using public IP for external access: $EC2_IP"
-    elif [ -n "$EC2_PRIVATE_IP" ] && validate_ip "$EC2_PRIVATE_IP"; then
-        EC2_IP="$EC2_PRIVATE_IP"
-        log "Using private IP (no public IP available): $EC2_IP"
+    # Try AWS metadata service first
+    if curl -s http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+        EC2_PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null)
+        log "Found IP via AWS metadata: $EC2_PUBLIC_IP"
+    # Try external service as fallback
+    elif curl -s http://checkip.amazonaws.com/ 2>/dev/null | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+        EC2_PUBLIC_IP=$(curl -s http://checkip.amazonaws.com/ 2>/dev/null)
+        log "Found IP via external service: $EC2_PUBLIC_IP"
     else
-        error "Could not determine valid EC2 IP address"
+        log "Could not automatically detect public IP"
+        log "Please enter your EC2 public IP manually:"
+        read -p "EC2 Public IP: " EC2_PUBLIC_IP
     fi
     
-    # Store both IPs for reference
-    export EC2_PRIVATE_IP="$EC2_PRIVATE_IP"
+    if [ -z "$EC2_PUBLIC_IP" ]; then
+        error "No valid IP address found. Please run the script again and enter the IP manually."
+        exit 1
+    fi
+    
+    # Validate the IP
+    if ! validate_ip "$EC2_PUBLIC_IP"; then
+        error "Invalid IP address format: $EC2_PUBLIC_IP"
+        exit 1
+    fi
+    
+    # Set the IP to use (always public IP for production)
+    EC2_IP="$EC2_PUBLIC_IP"
+    
+    # Store for reference
     export EC2_PUBLIC_IP="$EC2_PUBLIC_IP"
     export EC2_IP="$EC2_IP"
     
-    log "Final IP configuration:"
-    log "  - Private IP: $EC2_PRIVATE_IP"
-    log "  - Public IP: $EC2_PUBLIC_IP"
-    log "  - Selected IP: $EC2_IP"
+    log "Using EC2 Public IP: $EC2_IP"
 }
 
 # Function to validate IP address
@@ -236,7 +191,6 @@ generate_secure_env() {
 
 # EC2 Configuration
 EC2_IP=$EC2_IP
-EC2_PRIVATE_IP=$EC2_PRIVATE_IP
 EC2_PUBLIC_IP=$EC2_PUBLIC_IP
 
 # Database Configuration
@@ -434,7 +388,6 @@ display_service_info() {
     echo "=================================="
     echo "IP Configuration:"
     echo "  - Selected IP: $EC2_IP"
-    echo "  - Private IP: $EC2_PRIVATE_IP"
     echo "  - Public IP: $EC2_PUBLIC_IP"
     echo ""
     echo "Service URLs:"
@@ -612,7 +565,6 @@ main() {
     # Only detect IP if not manually specified
     if [ -z "$EC2_IP" ]; then
         get_ec2_ip
-        prompt_ip_selection
     fi
     
     generate_secure_env
