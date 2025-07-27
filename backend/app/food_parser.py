@@ -588,7 +588,7 @@ class FoodParserService:
                     description=food_data["description"],
                     serving_size=food_data["serving_size"],
                     meal_type=food_data["meal_type"],
-                    calories=food_data["nutritional_data"].get("calories_kcal", 0),
+                    calories=food_data["nutritional_data"].get("calories", 0),
                     protein_g=food_data["nutritional_data"].get("protein_g", 0),
                     fat_g=food_data["nutritional_data"].get("fat_g", 0),
                     carbs_g=food_data["nutritional_data"].get("carbs_g", 0),
